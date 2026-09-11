@@ -84,7 +84,7 @@ button:hover,.btn:hover{background:var(--panel-2)}
 
 .match{padding:12px 14px;border-top:1px solid var(--line)}
 .match:first-of-type{border-top:none}
-.board{display:grid;grid-template-columns:1fr 66px 1fr;column-gap:10px;row-gap:3px;align-items:center;max-width:640px;margin:0 auto}
+.board{display:grid;grid-template-columns:1fr 66px 1fr;column-gap:10px;row-gap:4px;align-items:center;max-width:640px;margin:0 auto}
 .ch{justify-self:end;text-align:right;min-width:0;max-width:100%}
 .ca{justify-self:start;text-align:left;min-width:0;max-width:100%}
 .cm{justify-self:center;text-align:center;min-width:0}
@@ -93,7 +93,9 @@ button:hover,.btn:hover{background:var(--panel-2)}
   padding:3px 9px;border-radius:8px;border:1px solid transparent;font-weight:550;font-size:14.5px}
 .ch.tname{flex-direction:row-reverse}
 .tname img{width:20px;height:20px;object-fit:contain;flex:none}
-.tname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tname span{overflow-wrap:anywhere;line-height:1.22}
+.ch.tname span{text-align:right}
+.ca.tname span{text-align:left}
 .tname.won{background:var(--win-bg);border-color:var(--win-line);font-weight:700}
 .tname.lost{color:var(--muted)}
 
@@ -110,6 +112,19 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .scorers{font-size:11.5px;color:var(--muted);line-height:1.55;padding:2px 9px 0}
 .scorers div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .penline{font-size:11px;color:var(--muted);white-space:nowrap}
+.hlrow{text-align:center;margin-top:7px}
+.hl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--accent);
+  text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+.hl:hover{background:var(--chip)}
+.hl .play{font-size:9px;line-height:1}
+.hl.weak{color:var(--faint)}
+button.hl{cursor:pointer;background:var(--panel);font:inherit;font-size:11.5px;color:var(--accent)}
+button.hl:hover{background:var(--chip)}
+.hlsrc{font-size:10.5px;color:var(--faint);text-decoration:none;margin-left:9px}
+.hlsrc:hover{text-decoration:underline}
+.player{max-width:620px;margin:9px auto 0}
+.player video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px}
+.hlmeta{text-align:right;margin-top:4px}
 .empty{padding:14px;color:var(--muted);font-size:13.5px}
 .note{padding:8px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
 
@@ -267,7 +282,7 @@ function espnMatches(json){
       halftime: c.status.type.name === "STATUS_HALFTIME",
       home: { name: home.team.shortDisplayName || home.team.displayName, logo: home.team.logo, score: hs, winner: home.winner },
       away: { name: away.team.shortDisplayName || away.team.displayName, logo: away.team.logo, score: as, winner: away.winner },
-      goalsHome: gh, goalsAway: ga, pen,
+      goalsHome: gh, goalsAway: ga, pen, src: "espn",
       hasEvents: true
     };
   });
@@ -300,7 +315,7 @@ function tsdbMatches(json, liveMap){
       halftime: status === "HT",
       home: { name: e.strHomeTeam, logo: e.strHomeTeamBadge || null, score: hs, winner: null },
       away: { name: e.strAwayTeam, logo: e.strAwayTeamBadge || null, score: as, winner: null },
-      goalsHome: [], goalsAway: [], pen: null,
+      goalsHome: [], goalsAway: [], pen: null, src: "tsdb",
       hasEvents: false
     };
   });
@@ -351,7 +366,9 @@ function f360Matches(list){
       state, statusShort, halftime: false, postponed: !!m.is_postponed,
       home: { name: teamName(m.home_team), logo: (m.home_team && m.home_team.logo) || null, score: score(m.home_score), winner: null },
       away: { name: teamName(m.away_team), logo: (m.away_team && m.away_team.logo) || null, score: score(m.away_score), winner: null },
-      goalsHome: [], goalsAway: [], pen
+      goalsHome: [], goalsAway: [], pen, src: "f360",
+      faHome: (m.home_team && m.home_team.title) || "",
+      faAway: (m.away_team && m.away_team.title) || ""
     };
   });
 }
@@ -411,6 +428,164 @@ async function fetchLeague(cfg, target){
   return { matches: all, logo: null, source: "thesportsdb" };
 }
 
+/* ---------------- highlights ---------------- */
+
+/* football360 publishes a highlights post per match, titled
+   "خلاصه بازی {home} {a}-{b} {away}؛ ...".
+   There is no search endpoint, so we scan the newest video posts and match on
+   score plus team name. Everything here is best-effort: if it misses, the row
+   simply shows no highlight link. */
+
+let HL = new Map();
+
+const faDigits = s => (s || "")
+  .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+  .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660));
+
+const faNorm = s => faDigits(s)
+  .replace(/\u200c/g, " ")                 // zero-width non-joiner
+  .replace(/[\u064A\u0649]/g, "\u06CC")    // arabic ya -> persian
+  .replace(/\u0643/g, "\u06A9")            // arabic kaf -> persian
+  .replace(/\s+/g, " ").trim();
+
+const HL_PREFIX = "\u062e\u0644\u0627\u0635\u0647 \u0628\u0627\u0632\u06cc";   // "match highlights"
+
+function parseHighlightTitle(title){
+  const t = faNorm(title);
+  if (t.indexOf(HL_PREFIX) !== 0) return null;
+  const body = t.slice(HL_PREFIX.length).split("\u061b")[0].trim();   // cut at the semicolon
+  const m = body.match(/^(.+?)\s*(\d+)\s*[-\u2013\u2014]\s*(\d+)\s*(.+)$/);
+  if (!m) return null;
+  return { home: m[1].trim(), hs: Number(m[2]), as: Number(m[3]), away: m[4].trim() };
+}
+
+function faNameMatch(a, b){
+  a = faNorm(a); b = faNorm(b);
+  if (!a || !b) return false;
+  if (a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return true;
+  const at = a.split(" ").filter(x => x.length > 2);
+  const bt = b.split(" ").filter(x => x.length > 2);
+  return at.some(x => bt.some(y => x === y || x.indexOf(y) >= 0 || y.indexOf(x) >= 0));
+}
+
+const HL_PAGE = 60;        // posts per request
+const HL_MAX_PAGES = 4;    // ~4-5 days back before we give up
+
+async function fetchIranHighlights(matches){
+  const map = new Map();
+  if (!IRAN_PROXY || !matches.length) return map;
+
+  const claim = (posts) => {
+    matches.forEach(m => {
+      if (map.has(m.id)) return;
+      const sameScore = posts.filter(p => p.hs === m.home.score && p.as === m.away.score);
+      const best = sameScore.find(p => faNameMatch(p.home, m.faHome) && faNameMatch(p.away, m.faAway))
+                || sameScore.find(p => faNameMatch(p.home, m.faHome) || faNameMatch(p.away, m.faAway));
+      if (!best) return;
+      const media = best.raw.primary_media || {};
+      map.set(m.id, {
+        url:   String(best.raw.link || "").replace(/^http:/, "https:"),
+        video: media.upload_video_link || null,
+        thumb: media.thumbnail || media.cover_image || null,
+        secs:  media.duration || null
+      });
+    });
+  };
+
+  // Newest posts first, so one page covers today. Only page deeper while
+  // something is still unmatched - browsing back a few days costs more calls,
+  // today costs exactly one.
+  for (let page = 0; page < HL_MAX_PAGES; page++) {
+    try {
+      const j = await getJSON(
+        `${IRAN_PROXY}/api/cms/v2/posts/?post_type=V&limit=${HL_PAGE}&offset=${page * HL_PAGE}`);
+      const batch = (j.data || []).map(p => {
+        const parsed = parseHighlightTitle(p.title);
+        return parsed ? Object.assign(parsed, { raw: p }) : null;
+      }).filter(Boolean);
+      claim(batch);
+      if (map.size === matches.length) break;              // everything found
+      if (!(j.data || []).length) break;                   // ran out of posts
+    } catch (e) { break; }   // proxy down or football360 unreachable - stop quietly
+  }
+  return map;
+}
+
+// For the European leagues there is no reliable feed, so send the user to a search.
+function youtubeSearch(m, comp){
+  const q = `${m.home.name} vs ${m.away.name} highlights${comp ? " " + comp : ""}`;
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+}
+
+function runtime(secs){
+  if (!secs) return "";
+  return " \u00b7 " + Math.floor(secs/60) + ":" + String(Math.round(secs%60)).padStart(2,"0");
+}
+
+function highlightInfo(m, comp){
+  if (m.state !== "post") return null;
+  const hit = HL.get(m.id);
+  if (hit) return {
+    kind: hit.video ? "video" : "link",
+    url: hit.url, video: hit.video, thumb: hit.thumb,
+    label: "Highlights" + runtime(hit.secs)
+  };
+  if (m.src === "espn") return { kind: "search", url: youtubeSearch(m, comp), label: "Find highlights" };
+  return null;
+}
+
+/* Plays the clip in place. Nothing is fetched until the button is pressed -
+   the poster is a thumbnail, the video itself is only requested on click.
+   If the clip fails to load (their CDN moves it, or Iran's network is down)
+   the row falls back to the football360 page instead of just breaking. */
+function highlightNode(info){
+  const wrap = el("div","hlrow");
+
+  if (info.kind !== "video") {
+    const a = el("a","hl" + (info.kind === "search" ? " weak" : ""));
+    a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+    a.appendChild(el("span","play","\u25b6"));
+    a.appendChild(el("span", null, info.label));
+    wrap.appendChild(a);
+    return wrap;
+  }
+
+  const btn = el("button","hl");
+  btn.appendChild(el("span","play","\u25b6"));
+  btn.appendChild(el("span", null, info.label));
+
+  const src = el("a","hlsrc","football360.ir");
+  src.href = info.url; src.target = "_blank"; src.rel = "noopener";
+
+  wrap.appendChild(btn);
+  wrap.appendChild(src);
+
+  btn.addEventListener("click", () => {
+    const box = el("div","player");
+    const v = document.createElement("video");
+    v.controls = true; v.autoplay = true; v.playsInline = true; v.preload = "none";
+    if (info.thumb) v.poster = info.thumb;
+    v.src = info.video;
+    v.onerror = () => {
+      box.innerHTML = "";
+      const a = el("a","hl");
+      a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+      a.appendChild(el("span","play","\u25b6"));
+      a.appendChild(el("span", null, "Video unavailable \u2014 open on football360"));
+      box.appendChild(a);
+    };
+    box.appendChild(v);
+    const foot = el("div","hlmeta");
+    const link = el("a","hlsrc","football360.ir");
+    link.href = info.url; link.target = "_blank"; link.rel = "noopener";
+    foot.appendChild(link);
+    box.appendChild(foot);
+    wrap.replaceWith(box);
+  });
+
+  return wrap;
+}
+
 /* ---------------- rendering ---------------- */
 
 function statusCell(m){
@@ -442,7 +617,7 @@ function scorerCell(lines, side){
   return c;
 }
 
-function matchRow(m){
+function matchRow(m, cfg){
   const played = m.state === "in" || m.state === "post";
   const hs = m.home.score, as = m.away.score;
 
@@ -465,6 +640,8 @@ function matchRow(m){
   b.appendChild(statusCell(m));
   b.appendChild(el("div","gnum ca" + (played && as != null ? (aState === "won" ? " won" : "") : " none"), played && as != null ? String(as) : "–"));
 
+  const hl = highlightInfo(m, cfg && cfg.name);
+
   if (m.goalsHome.length || m.goalsAway.length || m.pen) {
     b.appendChild(scorerCell(m.goalsHome, "ch"));
     const mid = el("div","cm");
@@ -474,6 +651,9 @@ function matchRow(m){
   }
 
   row.appendChild(b);
+
+  if (hl) row.appendChild(highlightNode(hl));
+
   return row;
 }
 
@@ -494,7 +674,7 @@ function leagueCard(cfg, matches, logo, failed, source){
   else if (!matches.length) card.appendChild(el("div","empty","No matches on this date."));
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
-    matches.forEach(m => card.appendChild(matchRow(m)));
+    matches.forEach(m => card.appendChild(matchRow(m, cfg)));
     if (cfg.src === "tsdb") {
       card.appendChild(el("div","note", source === "football360"
         ? "Live scores and table from football360.ir. Goal scorers are not published in that feed."
@@ -515,6 +695,16 @@ async function loadResults(){
   const results = await Promise.all(LEAGUES.map(cfg =>
     fetchLeague(cfg, day).catch(e => ({ matches: null, logo: null, error: e }))
   ));
+
+  // Iranian highlights need one extra call, and only when something finished
+  HL = new Map();
+  const iranIdx = LEAGUES.findIndex(l => l.src === "tsdb");
+  const iranRes = iranIdx >= 0 ? results[iranIdx] : null;
+  if (iranRes && iranRes.matches && iranRes.source === "football360") {
+    const done = iranRes.matches.filter(m =>
+      !isNaN(m.kickoff) && ymd(m.kickoff) === target && m.state === "post" && m.home.score != null);
+    if (done.length) HL = await fetchIranHighlights(done);
+  }
 
   $("content").innerHTML = "";
   let total = 0, broken = 0;
