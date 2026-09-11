@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Football Today</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#f0f2f5; --line:#e2e5ea;
+  --text:#15181d; --muted:#6b7280; --faint:#9aa1ab;
+  --accent:#1d6f42; --live:#d92b2b; --chip:#eef1f5;
+  --win-bg:#e3f5e9; --win-line:#bfe6cd; --win-text:#0f5a34;
+  --drop-bg:rgba(217,43,43,.09);
+  --form-w:#34a853; --form-l:#d92b2b; --form-d:#9aa1ab; --form-empty:#ccd2da;
+  --shadow:0 1px 2px rgba(16,20,28,.06),0 4px 14px rgba(16,20,28,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1014; --panel:#151a20; --panel-2:#1b2129; --line:#252d37;
+    --text:#e8ecf1; --muted:#98a2b0; --faint:#6d7784;
+    --accent:#3fbf74; --live:#ff5a5a; --chip:#212932;
+    --win-bg:rgba(63,191,116,.16); --win-line:rgba(63,191,116,.34); --win-text:#8ce0b0;
+    --drop-bg:rgba(255,90,90,.13);
+    --form-w:#3fbf74; --form-l:#ff5a5a; --form-d:#69737f; --form-empty:#39424e;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1014; --panel:#151a20; --panel-2:#1b2129; --line:#252d37;
+  --text:#e8ecf1; --muted:#98a2b0; --faint:#6d7784;
+  --accent:#3fbf74; --live:#ff5a5a; --chip:#212932;
+  --win-bg:rgba(63,191,116,.16); --win-line:rgba(63,191,116,.34); --win-text:#8ce0b0;
+  --drop-bg:rgba(255,90,90,.13);
+  --form-w:#3fbf74; --form-l:#ff5a5a; --form-d:#69737f; --form-empty:#39424e;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding:0 16px 56px;
+}
+.wrap{max-width:820px;margin:0 auto}
+header{padding-block:22px 14px}
+h1{font-size:22px;margin:0 0 2px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+button,.btn{
+  font:inherit;font-size:13px;color:var(--text);background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;
+  text-decoration:none;display:inline-block;
+}
+button:hover,.btn:hover{background:var(--panel-2)}
+.spacer{flex:1}
+.meta{font-size:12px;color:var(--faint)}
+#dateLabel{font-weight:600;font-size:14px;padding:0 4px;min-width:150px;text-align:center}
+
+.notice{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--live);
+  border-radius:10px;padding:14px 16px;margin:16px 0;box-shadow:var(--shadow);font-size:14px}
+.hide{display:none}
+
+.league{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:14px 0;box-shadow:var(--shadow);overflow:hidden}
+.lhead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.lhead img{width:20px;height:20px;object-fit:contain}
+.lname{font-weight:650;font-size:14px}
+.lcountry{color:var(--faint);font-size:12px}
+.tablelink{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:7px}
+.tablelink:hover{background:var(--chip)}
+
+.match{padding:12px 14px;border-top:1px solid var(--line)}
+.match:first-of-type{border-top:none}
+.board{display:grid;grid-template-columns:1fr 66px 1fr;column-gap:10px;row-gap:3px;align-items:center;max-width:640px;margin:0 auto}
+.ch{justify-self:end;text-align:right;min-width:0;max-width:100%}
+.ca{justify-self:start;text-align:left;min-width:0;max-width:100%}
+.cm{justify-self:center;text-align:center;min-width:0}
+
+.tname{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;
+  padding:3px 9px;border-radius:8px;border:1px solid transparent;font-weight:550;font-size:14.5px}
+.ch.tname{flex-direction:row-reverse}
+.tname img{width:20px;height:20px;object-fit:contain;flex:none}
+.tname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tname.won{background:var(--win-bg);border-color:var(--win-line);font-weight:700}
+.tname.lost{color:var(--muted)}
+
+.dash{color:var(--faint);font-weight:600;font-size:14px}
+.gnum{font-size:23px;font-weight:750;line-height:1.15;font-variant-numeric:tabular-nums;padding:0 9px}
+.gnum.won{color:var(--win-text)}
+.gnum.none{color:var(--faint);font-weight:500}
+
+.status{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.status.live{color:var(--live);font-weight:700}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live);margin-right:4px;animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+.scorers{font-size:11.5px;color:var(--muted);line-height:1.55;padding:2px 9px 0}
+.scorers div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.penline{font-size:11px;color:var(--muted);white-space:nowrap}
+.empty{padding:14px;color:var(--muted);font-size:13.5px}
+.note{padding:8px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+.tblwrap{overflow-x:auto}
+th,td{padding:8px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12px;border-top:none;background:var(--panel-2)}
+td.tm,th.tm{text-align:left;white-space:normal}
+td.tm{display:flex;align-items:center;gap:8px}
+td.tm img{width:18px;height:18px;object-fit:contain}
+.pos{color:var(--muted);width:28px}
+td.form{white-space:nowrap;text-align:right;padding-right:12px}
+.fdots{display:inline-flex;align-items:center;gap:5px}
+.fdot{width:18px;height:18px;border-radius:50%;flex:none;
+  display:inline-flex;align-items:center;justify-content:center}
+.fdot svg{width:12px;height:12px;display:block}
+.fdot.W{background:var(--form-w);color:var(--form-w)}
+.fdot.L{background:var(--form-l);color:var(--form-l)}
+.fdot.D{background:var(--form-d);color:var(--form-d)}
+.fdot.empty{background:transparent;border:2px solid var(--form-empty)}
+/* ring marks the most recent match */
+.fdot.latest{outline:2px solid currentColor;outline-offset:2px}
+tr.drop td{background:var(--drop-bg)}
+tr.drop td.tm{font-weight:600}
+@media(max-width:520px){
+  .match{padding:11px 8px}
+  .board{grid-template-columns:1fr 54px 1fr;column-gap:6px}
+  .tname{font-size:13px;gap:6px;padding:3px 7px}
+  .tname img{width:17px;height:17px}
+  .gnum{font-size:20px;padding:0 7px}
+  .scorers{font-size:11px;padding:2px 7px 0}
+  .fdot{width:15px;height:15px}
+  .fdot svg{width:10px;height:10px}
+  .fdots{gap:4px}
+  .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1 id="pageTitle">Football Today</h1>
+  <div class="sub" id="pageSub">Top 5 leagues · Champions League · Persian Gulf Pro League</div>
+  <div class="bar" id="topBar">
+    <button id="prevBtn" title="Previous day">‹</button>
+    <span id="dateLabel">—</span>
+    <button id="nextBtn" title="Next day">›</button>
+    <button id="todayBtn">Today</button>
+    <button id="reloadBtn">Refresh</button>
+  </div>
+</header>
+
+<div id="error" class="notice hide"></div>
+<div id="content"></div>
+
+</div>
+
+<script>
+/* No API key. No daily limit. No date restriction.
+   Top 5 leagues + Champions League : ESPN's public scoreboard feed
+   Persian Gulf Pro League          : TheSportsDB free tier              */
+
+const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer";
+const ESPN_STANDINGS = "https://site.api.espn.com/apis/v2/sports/soccer";
+const TSDB = "https://www.thesportsdb.com/api/v1/json/123";
+
+/* ============================================================
+   Optional: paste your Cloudflare Worker URL between the quotes to use
+   football360.ir for the Iranian league (full table, live minute, logos).
+   See football-iran-proxy.js. Leave empty and the page uses TheSportsDB.
+   Example: "https://football-iran.yourname.workers.dev"
+   ============================================================ */
+const IRAN_PROXY = "https://football-iran-proxy.ali-chitsazan.workers.dev";
+/* ============================================================ */
+const IRAN_LEAGUE = "4742";
+
+const LEAGUES = [
+  { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe"  },
+  { key:"eng.1", drop:3,          src:"espn", name:"Premier League",          country:"England" },
+  { key:"esp.1", drop:3,          src:"espn", name:"La Liga",                 country:"Spain"   },
+  { key:"ita.1", drop:3,          src:"espn", name:"Serie A",                 country:"Italy"   },
+  { key:"ger.1", drop:2,          src:"espn", name:"Bundesliga",              country:"Germany" },
+  { key:"fra.1", drop:2,          src:"espn", name:"Ligue 1",                 country:"France"  },
+  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran"    }
+];
+
+const $ = id => document.getElementById(id);
+const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const ymd = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const compact = d => ymd(d).replace(/-/g,"");
+const shift = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+
+const params = new URLSearchParams(location.search);
+let day = params.get("date") ? parseYmd(params.get("date")) : new Date();
+
+// The whole page is one file, so the table is a view swap rather than a page load.
+// Hash routing (not pushState) because pushState is blocked on file:// URLs.
+function routeOf(hash){
+  const m = /^#standings\/(.+)$/.exec(hash || "");
+  return m ? { view: "standings", league: decodeURIComponent(m[1]) } : { view: "results" };
+}
+
+async function getJSON(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+/* ---------------- normalise both sources into one shape ---------------- */
+
+function espnMatches(json){
+  return (json.events || []).map(ev => {
+    const c = ev.competitions[0];
+    const home = c.competitors.find(t => t.homeAway === "home") || c.competitors[0];
+    const away = c.competitors.find(t => t.homeAway === "away") || c.competitors[1];
+    const state = c.status.type.state;                       // pre | in | post
+    const hs = home.score === "" ? null : Number(home.score);
+    const as = away.score === "" ? null : Number(away.score);
+
+    // goal events
+    const gh = [], ga = [], sh = [];
+    (c.details || []).forEach(d => {
+      if (!d.scoringPlay) return;
+      const who = (d.athletesInvolved || []).map(a => a.shortName || a.displayName).join(", ") || "Unknown";
+      if (d.shootout) { sh.push(d.team && d.team.id === home.team.id ? "h" : "a"); return; }
+      const min = (d.clock && d.clock.displayValue) ? d.clock.displayValue : "";
+      const tag = d.penaltyKick ? " (p)" : (d.ownGoal ? " (og)" : "");
+      const line = (who + " " + min + tag).trim();
+      (d.team && d.team.id === home.team.id ? gh : ga).push(line);
+    });
+    // ESPN files own goals inconsistently; the scoreline is the truth, so move them if the counts disagree
+    if (hs != null && as != null && (gh.length !== hs || ga.length !== as)) {
+      const moveOg = (from, to) => {
+        for (let i = from.length - 1; i >= 0; i--) {
+          if (from[i].includes("(og)")) { to.push(from.splice(i,1)[0]); return true; }
+        }
+        return false;
+      };
+      let guard = 0;
+      while (gh.length > hs && ga.length < as && guard++ < 8 && moveOg(gh, ga)) {}
+      guard = 0;
+      while (ga.length > as && gh.length < hs && guard++ < 8 && moveOg(ga, gh)) {}
+    }
+
+    let pen = null;
+    if (sh.length) pen = { home: sh.filter(x => x === "h").length, away: sh.filter(x => x === "a").length };
+
+    return {
+      id: ev.id,
+      kickoff: new Date(ev.date),
+      state,
+      statusShort: c.status.type.shortDetail || c.status.displayClock || "",
+      halftime: c.status.type.name === "STATUS_HALFTIME",
+      home: { name: home.team.shortDisplayName || home.team.displayName, logo: home.team.logo, score: hs, winner: home.winner },
+      away: { name: away.team.shortDisplayName || away.team.displayName, logo: away.team.logo, score: as, winner: away.winner },
+      goalsHome: gh, goalsAway: ga, pen,
+      hasEvents: true
+    };
+  });
+}
+
+function tsdbMatches(json, liveMap){
+  return (json.events || []).map(e => {
+    const kickoff = e.strTimestamp ? new Date(e.strTimestamp.replace(" ", "T") + (e.strTimestamp.endsWith("Z") ? "" : "Z"))
+                                   : new Date(e.dateEvent + "T" + (e.strTime || "00:00:00") + "Z");
+    let hs = e.intHomeScore === null || e.intHomeScore === "" ? null : Number(e.intHomeScore);
+    let as = e.intAwayScore === null || e.intAwayScore === "" ? null : Number(e.intAwayScore);
+    let status = (e.strStatus || "").trim();
+    let state = "pre";
+
+    const live = liveMap && liveMap.get(String(e.idEvent));
+    if (live) {
+      state = "in";
+      hs = live.intHomeScore == null ? hs : Number(live.intHomeScore);
+      as = live.intAwayScore == null ? as : Number(live.intAwayScore);
+      status = live.strProgress || live.strStatus || "LIVE";
+    } else if (["FT","AET","PEN","Match Finished"].includes(status) || (hs != null && as != null && status !== "NS")) {
+      state = "post"; if (!status || status === "Match Finished") status = "FT";
+    }
+
+    return {
+      id: e.idEvent,
+      kickoff,
+      state,
+      statusShort: status || "FT",
+      halftime: status === "HT",
+      home: { name: e.strHomeTeam, logo: e.strHomeTeamBadge || null, score: hs, winner: null },
+      away: { name: e.strAwayTeam, logo: e.strAwayTeamBadge || null, score: as, winner: null },
+      goalsHome: [], goalsAway: [], pen: null,
+      hasEvents: false
+    };
+  });
+}
+
+// football360 leaves english_name in Persian for some clubs, so fill those in
+const IRAN_NAMES = {
+  "آلومینیوم اراک": "Aluminium Arak",
+  "فولاد": "Foolad",
+  "پیکان": "Paykan",
+  "فجر سپاسی": "Fajr Sepasi",
+  "گل گهر": "Gol Gohar",
+  "نساجی": "Nassaji",
+  "ذوب آهن": "Zob Ahan",
+  "صنعت نفت": "Sanat Naft",
+  "مس شهربابک": "Mes Shahr Babak",
+  "چادرملو اردکان": "Chadormalu"
+};
+const faKey = v => (v || "").replace(/\u200c/g, " ").replace(/\s+/g, " ").trim();
+const hasPersian = v => /[\u0600-\u06FF]/.test(v || "");
+
+function teamName(t){
+  if (!t) return "?";
+  const en = t.english_name || "";
+  if (en && !hasPersian(en)) return en;
+  return IRAN_NAMES[faKey(t.title)] || IRAN_NAMES[faKey(en)] || t.title || "?";
+}
+
+function f360Matches(list){
+  return (list || []).map(m => {
+    const type = (m.status && m.status.status_type) || "";
+    const finished = m.is_finished || type === "finished";
+    const notStarted = type === "notstarted" || m.is_postponed;
+    const state = m.is_postponed ? "pre" : (finished ? "post" : (notStarted ? "pre" : "in"));
+    const pen = (m.home_penalty_score != null && m.away_penalty_score != null)
+      ? { home: Number(m.home_penalty_score), away: Number(m.away_penalty_score) } : null;
+
+    let statusShort;
+    if (m.is_postponed) statusShort = "PP";
+    else if (state === "in") statusShort = (m.minute != null ? m.minute + "'" : "LIVE");
+    else if (state === "post") statusShort = pen ? "PEN" : "FT";
+    else statusShort = "";
+
+    const score = v => (state === "pre" || v == null || v === "") ? null : Number(v);
+    return {
+      id: String(m.id),
+      kickoff: new Date(Number(m.holds_at) * 1000),
+      state, statusShort, halftime: false, postponed: !!m.is_postponed,
+      home: { name: teamName(m.home_team), logo: (m.home_team && m.home_team.logo) || null, score: score(m.home_score), winner: null },
+      away: { name: teamName(m.away_team), logo: (m.away_team && m.away_team.logo) || null, score: score(m.away_score), winner: null },
+      goalsHome: [], goalsAway: [], pen
+    };
+  });
+}
+
+// football360 changes its season id every year, so look up the current one instead of hardcoding it
+let f360TrendPromise = null;
+function f360Trend(){
+  if (!f360TrendPromise) {
+    f360TrendPromise = getJSON(`${IRAN_PROXY}/api/base/competitions/defaults/`).then(d => {
+      const c = (d.competitions || []).find(x => x.english_name === "Persian Gulf Pro League");
+      if (!c || !c.current || !c.current.id) throw new Error("league not found upstream");
+      return c.current.id;
+    });
+    f360TrendPromise.catch(() => { f360TrendPromise = null; });   // let a later load retry
+  }
+  return f360TrendPromise;
+}
+
+async function fetchIranF360(){
+  const trend = await f360Trend();
+  const j = await getJSON(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/fixtures/`);
+  const list = j.data || j.results || (Array.isArray(j) ? j : []);
+  if (!list.length) throw new Error("empty fixtures");
+  return { matches: f360Matches(list), logo: null, source: "football360" };
+}
+
+/* ---------------- fetching ---------------- */
+
+async function fetchLeague(cfg, target){
+  const from = compact(shift(target,-1)), to = compact(shift(target,1));
+  if (cfg.src === "espn") {
+    const j = await getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${from}-${to}`);
+    return { matches: espnMatches(j), logo: j.leagues && j.leagues[0] && j.leagues[0].logos && j.leagues[0].logos[0] && j.leagues[0].logos[0].href, source: "espn" };
+  }
+  // football360 when the proxy is configured; TheSportsDB whenever that is unavailable
+  if (IRAN_PROXY) {
+    try { return await fetchIranF360(); }
+    catch (e) { /* football360 or the proxy is down — fall through */ }
+  }
+
+  // TheSportsDB has no range query, so ask for the three days around the target
+  const days = [shift(target,-1), target, shift(target,1)].map(ymd);
+  // The live feed is heavily rationed on the free tier and often refuses. It is a bonus,
+  // never a blocker: cap it so a slow or hanging response cannot hold up the page.
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+  const [live, ...pages] = await Promise.all([
+    withTimeout(getJSON(`${TSDB}/livescore.php?s=Soccer`).catch(() => null), 4000),
+    ...days.map(d => getJSON(`${TSDB}/eventsday.php?d=${d}&l=${cfg.key}`).catch(() => ({ events: [] })))
+  ]);
+  const liveMap = new Map();
+  ((live && (live.livescore || live.events)) || [])
+    .filter(x => String(x.idLeague) === cfg.key)
+    .forEach(x => liveMap.set(String(x.idEvent), x));
+  const all = [];
+  const seen = new Set();
+  pages.forEach(p => tsdbMatches(p, liveMap).forEach(m => { if (!seen.has(m.id)) { seen.add(m.id); all.push(m); } }));
+  return { matches: all, logo: null, source: "thesportsdb" };
+}
+
+/* ---------------- rendering ---------------- */
+
+function statusCell(m){
+  const w = el("div","status cm");
+  if (m.state === "in") {
+    w.classList.add("live");
+    w.appendChild(el("span","dot"));
+    w.appendChild(document.createTextNode(m.halftime ? "HT" : (m.statusShort || "LIVE")));
+  } else if (m.state === "post") {
+    w.textContent = m.pen ? "PEN" : (m.statusShort || "FT");
+  } else if (m.postponed) {
+    w.textContent = "PP";
+  } else {
+    w.textContent = isNaN(m.kickoff) ? "—" : m.kickoff.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  }
+  return w;
+}
+
+function nameCell(t, side, state){
+  const c = el("div", "tname " + side + (state ? " " + state : ""));
+  if (t.logo) { const i = new Image(); i.src = t.logo; i.alt = ""; i.loading = "lazy"; c.appendChild(i); }
+  c.appendChild(el("span", null, t.name));
+  return c;
+}
+
+function scorerCell(lines, side){
+  const c = el("div", "scorers " + side);
+  lines.forEach(l => c.appendChild(el("div", null, l)));
+  return c;
+}
+
+function matchRow(m){
+  const played = m.state === "in" || m.state === "post";
+  const hs = m.home.score, as = m.away.score;
+
+  let cmp = null;
+  if (m.pen && m.pen.home !== m.pen.away) cmp = m.pen.home - m.pen.away;
+  else if (m.home.winner === true || m.away.winner === true) cmp = m.home.winner ? 1 : -1;
+  else if (hs != null && as != null) cmp = hs - as;
+  const decided = played && cmp != null && cmp !== 0;
+  const hState = decided ? (cmp > 0 ? "won" : "lost") : "";
+  const aState = decided ? (cmp < 0 ? "won" : "lost") : "";
+
+  const row = el("div","match");
+  const b = el("div","board");
+
+  b.appendChild(nameCell(m.home, "ch", hState));
+  b.appendChild(el("div","dash cm","–"));
+  b.appendChild(nameCell(m.away, "ca", aState));
+
+  b.appendChild(el("div","gnum ch" + (played && hs != null ? (hState === "won" ? " won" : "") : " none"), played && hs != null ? String(hs) : "–"));
+  b.appendChild(statusCell(m));
+  b.appendChild(el("div","gnum ca" + (played && as != null ? (aState === "won" ? " won" : "") : " none"), played && as != null ? String(as) : "–"));
+
+  if (m.goalsHome.length || m.goalsAway.length || m.pen) {
+    b.appendChild(scorerCell(m.goalsHome, "ch"));
+    const mid = el("div","cm");
+    if (m.pen) mid.appendChild(el("div","penline", m.pen.home + "–" + m.pen.away));
+    b.appendChild(mid);
+    b.appendChild(scorerCell(m.goalsAway, "ca"));
+  }
+
+  row.appendChild(b);
+  return row;
+}
+
+function leagueCard(cfg, matches, logo, failed, source){
+  const card = el("div","league");
+  const head = el("div","lhead");
+  if (logo) { const i = new Image(); i.src = logo; i.alt = ""; i.loading = "lazy"; head.appendChild(i); }
+  const names = el("div");
+  names.appendChild(el("div","lname", cfg.name));
+  names.appendChild(el("div","lcountry", cfg.country));
+  head.appendChild(names);
+  const link = el("a","tablelink","League table");
+  link.href = "#standings/" + encodeURIComponent(cfg.key);
+  head.appendChild(link);
+  card.appendChild(head);
+
+  if (failed) card.appendChild(el("div","empty","Could not reach the data source for this league."));
+  else if (!matches.length) card.appendChild(el("div","empty","No matches on this date."));
+  else {
+    matches.sort((a,b) => a.kickoff - b.kickoff);
+    matches.forEach(m => card.appendChild(matchRow(m)));
+    if (cfg.src === "tsdb") {
+      card.appendChild(el("div","note", source === "football360"
+        ? "Live scores and table from football360.ir. Goal scorers are not published in that feed."
+        : "Fallback source (TheSportsDB): results and kickoff times only, no goal scorers."));
+    }
+  }
+  return card;
+}
+
+async function loadResults(){
+  $("error").classList.add("hide");
+  $("content").innerHTML = "";
+  $("dateLabel").textContent = day.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+  document.title = "Football — " + $("dateLabel").textContent;
+  $("content").appendChild(el("div","empty","Loading…"));
+
+  const target = ymd(day);
+  const results = await Promise.all(LEAGUES.map(cfg =>
+    fetchLeague(cfg, day).catch(e => ({ matches: null, logo: null, error: e }))
+  ));
+
+  $("content").innerHTML = "";
+  let total = 0, broken = 0;
+  LEAGUES.forEach((cfg, i) => {
+    const r = results[i];
+    if (r.matches === null) { broken++; $("content").appendChild(leagueCard(cfg, [], null, true, null)); return; }
+    // keep only matches whose kickoff falls on the chosen day in local time
+    const mine = r.matches.filter(m => !isNaN(m.kickoff) && ymd(m.kickoff) === target);
+    total += mine.length;
+    $("content").appendChild(leagueCard(cfg, mine, r.logo, false, r.source));
+  });
+
+  const stamp = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  const foot = el("div","meta", total + " match" + (total === 1 ? "" : "es") + " · updated " + stamp +
+    " · reload to refresh · no API key, no daily limit");
+  foot.style.marginTop = "14px";
+  $("content").appendChild(foot);
+
+  if (broken === LEAGUES.length) {
+    $("error").innerHTML = "<b>Could not reach either data source.</b><br>Check your internet connection and reload.";
+    $("error").classList.remove("hide");
+  }
+}
+
+/* ---------------- recent form ---------------- */
+
+// Neither source publishes a usable last-5, so it is derived from finished matches.
+function foldForm(events){
+  const m = new Map();
+  events.sort((x,y) => x.ts - y.ts).forEach(e => {
+    const put = (id, res) => { if (!m.has(id)) m.set(id, []); m.get(id).push({ res, ts: e.ts }); };
+    put(e.h, e.res);
+    put(e.a, e.res === "W" ? "L" : e.res === "L" ? "W" : "D");
+  });
+  return m;
+}
+
+function formFromEspn(json){
+  const raw = (json.events || []).filter(ev => ev && ev.competitions && ev.competitions[0]);
+  // The lookback window can reach into the previous season (English clubs played into May),
+  // so keep only the newest season present. Otherwise week 3 shows five results.
+  const years = raw.map(ev => ev.season && ev.season.year).filter(y => y != null);
+  const season = years.length ? Math.max.apply(null, years) : null;
+
+  const events = raw.filter(ev => season == null || !ev.season || ev.season.year === season).map(ev => {
+    const c = ev.competitions[0];
+    if (!c || c.status.type.state !== "post") return null;
+    const h = c.competitors.find(t => t.homeAway === "home") || c.competitors[0];
+    const a = c.competitors.find(t => t.homeAway === "away") || c.competitors[1];
+    if (!h || !a) return null;
+    const hs = Number(h.score), as = Number(a.score);
+    // trust the winner flag first so shootouts are not recorded as draws
+    let res;
+    if (h.winner === true) res = "W";
+    else if (a.winner === true) res = "L";
+    else if (isFinite(hs) && isFinite(as)) res = hs > as ? "W" : hs < as ? "L" : "D";
+    else return null;
+    return { ts: new Date(ev.date).getTime(), h: h.team.id, a: a.team.id, res };
+  }).filter(Boolean);
+  return foldForm(events);
+}
+
+function formFromF360(list){
+  const events = (list || []).filter(m => m.is_finished && m.home_score != null && m.away_score != null)
+    .map(m => {
+      const hs = Number(m.home_score), as = Number(m.away_score);
+      return { ts: Number(m.holds_at) * 1000, h: m.home_team.id, a: m.away_team.id,
+               res: hs > as ? "W" : hs < as ? "L" : "D" };
+    });
+  return foldForm(events);
+}
+
+const FORM_ICON = {
+  W: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.7 6.3l2.2 2.2 4.5-4.9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  L: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
+  D: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.3 6h5.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+const FORM_WORD = { W: "Win", L: "Loss", D: "Draw" };
+
+// Always five slots: played matches fill from the left, the rest stay empty.
+function formCell(list){
+  const td = el("td","form");
+  const box = el("span","fdots");
+  const last5 = (list || []).slice(-5);
+  for (let i = 0; i < 5; i++) {
+    const item = last5[i];
+    if (!item) { box.appendChild(el("span","fdot empty")); continue; }
+    const dot = el("span", "fdot " + item.res + (i === last5.length - 1 ? " latest" : ""));
+    dot.innerHTML = FORM_ICON[item.res] || "";
+    dot.title = FORM_WORD[item.res] +
+      (item.ts ? " · " + new Date(item.ts).toLocaleDateString([], { month:"short", day:"numeric" }) : "");
+    box.appendChild(dot);
+  }
+  td.appendChild(box);
+  return td;
+}
+
+/* ---------------- standings ---------------- */
+
+function iranSeason(d){
+  const y = d.getFullYear();
+  return d.getMonth() + 1 >= 7 ? y + "-" + (y+1) : (y-1) + "-" + y;
+}
+
+function tableCard(title, subtitle, logo, rows, note, drop){
+  const card = el("div","league");
+  const head = el("div","lhead");
+  if (logo) { const i = new Image(); i.src = logo; i.alt = ""; head.appendChild(i); }
+  const names = el("div");
+  names.appendChild(el("div","lname", title));
+  names.appendChild(el("div","lcountry", subtitle));
+  head.appendChild(names);
+  card.appendChild(head);
+
+  const wrap = el("div","tblwrap");
+  const t = el("table");
+  t.innerHTML = "<thead><tr><th class='pos'>#</th><th class='tm'>Team</th><th>P</th>" +
+    "<th class='hide-sm'>W</th><th class='hide-sm'>D</th><th class='hide-sm'>L</th>" +
+    "<th class='hide-sm'>GF</th><th class='hide-sm'>GA</th><th>GD</th><th>Pts</th><th>Last 5</th></tr></thead>";
+  const tb = el("tbody");
+  const dropFrom = (drop > 0 && rows.length > drop + 1) ? rows.length - drop : -1;
+  rows.forEach((r, i) => {
+    const tr = el("tr");
+    if (dropFrom >= 0 && i >= dropFrom) tr.className = "drop";
+    tr.appendChild(el("td","pos", String(r.rank)));
+    const tm = el("td","tm");
+    if (r.logo) { const i = new Image(); i.src = r.logo; i.alt = ""; i.loading = "lazy"; tm.appendChild(i); }
+    tm.appendChild(el("span", null, r.team));
+    tr.appendChild(tm);
+    [r.p, r.w, r.d, r.l, r.gf, r.ga].forEach((v, idx) => {
+      tr.appendChild(el("td", idx === 0 ? null : "hide-sm", String(v)));
+    });
+    tr.appendChild(el("td", null, (r.gd > 0 ? "+" : "") + r.gd));
+    const pts = el("td", null, String(r.pts)); pts.style.fontWeight = "700";
+    tr.appendChild(pts);
+
+    tr.appendChild(formCell(r.form));
+
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  wrap.appendChild(t);
+  card.appendChild(wrap);
+  if (note) card.appendChild(el("div","note", note));
+  return card;
+}
+
+async function loadStandings(viewLeague){
+  const cfg = LEAGUES.find(l => l.key === viewLeague) || { key: viewLeague, name: "League", country: "", src: "espn" };
+  $("pageTitle").textContent = cfg.name + " — table";
+  $("pageSub").textContent = cfg.country;
+  document.title = cfg.name + " table";
+  $("topBar").innerHTML = "";
+  const back = el("a","btn","← Back to the scores");
+  back.href = "#";
+  $("topBar").appendChild(back);
+  $("content").appendChild(el("div","empty","Loading…"));
+
+  try {
+    if (cfg.src === "espn") {
+      // limit=1000 matters: without it ESPN caps at 100 and returns the OLDEST, not the newest
+      const from = compact(shift(day,-120)), to = compact(day);
+      const [j, formMap] = await Promise.all([
+        getJSON(`${ESPN_STANDINGS}/${cfg.key}/standings`),
+        getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${from}-${to}&limit=1000`)
+          .then(formFromEspn).catch(() => new Map())
+      ]);
+      const groups = j.children || [];
+      $("content").innerHTML = "";
+      if (!groups.length) { $("content").appendChild(el("div","empty","No table published for this competition right now.")); return; }
+      groups.forEach(g => {
+        const rows = (g.standings.entries || []).map(e => {
+          const s = {}; (e.stats || []).forEach(x => s[x.name] = x.value != null ? x.value : x.displayValue);
+          return { rank: s.rank, team: e.team.displayName, logo: e.team.logos && e.team.logos[0] && e.team.logos[0].href,
+                   form: formMap.get(e.team.id) || [],
+                   p: s.gamesPlayed ?? 0, w: s.wins ?? 0, d: s.ties ?? 0, l: s.losses ?? 0,
+                   gf: s.pointsFor ?? 0, ga: s.pointsAgainst ?? 0, gd: s.pointDifferential ?? 0, pts: s.points ?? 0 };
+        }).sort((a,b) => a.rank - b.rank);
+        $("content").appendChild(tableCard(g.name || cfg.name, cfg.country, null, rows, null, cfg.drop || 0));
+      });
+    } else {
+      if (IRAN_PROXY) {
+        try {
+          const trend = await f360Trend();
+          const [st, formMap] = await Promise.all([
+            getJSON(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/standings/`),
+            getJSON(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/fixtures/`)
+              .then(f => formFromF360(f.data || f.results || [])).catch(() => new Map())
+          ]);
+          const dig = (o, depth) => {
+            if (Array.isArray(o) && o.length && o[0] && o[0].team && o[0].rank !== undefined) return o;
+            if (o && typeof o === "object" && depth < 5) {
+              for (const k of Object.keys(o)) { const r = dig(o[k], depth+1); if (r) return r; }
+            }
+            return null;
+          };
+          const raw = dig(st, 0);
+          if (raw && raw.length) {
+            const rows = raw.map(r => ({
+              rank: Number(r.rank),
+              team: teamName(r.team),
+              logo: (r.team && r.team.logo) || null,
+              form: formMap.get(r.team && r.team.id) || [],
+              p: Number(r.played_matches||0), w: Number(r.won_matches||0),
+              d: Number(r.played_matches||0) - Number(r.won_matches||0) - Number(r.lost_matches||0),
+              l: Number(r.lost_matches||0),
+              gf: Number(r.scored_goals||0), ga: Number(r.conceded_goals||0),
+              gd: Number(r.goal_difference||0), pts: Number(r.score||0)
+            })).sort((a,b) => a.rank - b.rank);
+            $("content").innerHTML = "";
+            $("content").appendChild(tableCard(cfg.name, st.english_name || cfg.country, st.logo || null, rows, "Source: football360.ir", cfg.drop || 0));
+            return;
+          }
+        } catch (e) { /* fall through to TheSportsDB */ }
+      }
+      const season = iranSeason(day);
+      const j = await getJSON(`${TSDB}/lookuptable.php?l=${cfg.key}&s=${season}`);
+      const rows = (j.table || []).map(r => ({
+        rank: Number(r.intRank), team: r.strTeam, logo: r.strBadge || null,
+        p: Number(r.intPlayed||0), w: Number(r.intWin||0), d: Number(r.intDraw||0), l: Number(r.intLoss||0),
+        gf: Number(r.intGoalsFor||0), ga: Number(r.intGoalsAgainst||0),
+        gd: Number(r.intGoalDifference||0), pts: Number(r.intPoints||0)
+      }));
+      $("content").innerHTML = "";
+      if (!rows.length) { $("content").appendChild(el("div","empty","No table available for season " + season + ".")); return; }
+      $("content").appendChild(tableCard(cfg.name, "Season " + season, null, rows,
+        "The free data source returns only the top of this table, so no relegation zone is marked.", 0));
+    }
+  } catch (e) {
+    $("content").innerHTML = "";
+    $("error").innerHTML = "<b>Could not load the table.</b><br>" + e.message;
+    $("error").classList.remove("hide");
+  }
+}
+
+/* ---------------- wiring ---------------- */
+
+const TOPBAR_HTML = $("topBar").innerHTML;
+const TITLE = $("pageTitle").textContent;
+const SUBTITLE = $("pageSub").textContent;
+
+function showResults(){
+  $("pageTitle").textContent = TITLE;
+  $("pageSub").textContent = SUBTITLE;
+  $("topBar").innerHTML = TOPBAR_HTML;
+  $("prevBtn").addEventListener("click", () => { day = shift(day,-1); loadResults(); });
+  $("nextBtn").addEventListener("click", () => { day = shift(day, 1); loadResults(); });
+  $("todayBtn").addEventListener("click", () => { day = new Date(); loadResults(); });
+  $("reloadBtn").addEventListener("click", loadResults);
+  loadResults();
+}
+
+function showStandings(key){
+  $("error").classList.add("hide");
+  $("content").innerHTML = "";
+  loadStandings(key);
+}
+
+function route(){
+  const r = routeOf(location.hash);
+  window.scrollTo(0, 0);
+  if (r.view === "standings") showStandings(r.league); else showResults();
+}
+
+window.addEventListener("hashchange", route);
+
+// Old bookmarks used ?view=standings&league=... — send those to the hash route
+if (!location.hash && params.get("view") === "standings" && params.get("league")) {
+  location.replace("#standings/" + encodeURIComponent(params.get("league")));
+}
+route();
+
+</script>
+</body>
+</html>
