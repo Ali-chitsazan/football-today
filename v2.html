@@ -115,6 +115,13 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .hl:hover{background:var(--chip)}
 .hl .play{font-size:9px;line-height:1}
 .hl.weak{color:var(--faint)}
+button.hl{cursor:pointer;background:var(--panel);font:inherit;font-size:11.5px;color:var(--accent)}
+button.hl:hover{background:var(--chip)}
+.hlsrc{font-size:10.5px;color:var(--faint);text-decoration:none;margin-left:9px}
+.hlsrc:hover{text-decoration:underline}
+.player{max-width:620px;margin:9px auto 0}
+.player video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px}
+.hlmeta{text-align:right;margin-top:4px}
 .empty{padding:14px;color:var(--muted);font-size:13.5px}
 .note{padding:8px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
 
@@ -475,8 +482,10 @@ async function fetchIranHighlights(matches){
       if (!best) return;
       const media = best.raw.primary_media || {};
       map.set(m.id, {
-        url: String(best.raw.link || "").replace(/^http:/, "https:"),
-        mins: media.minute_duration || null
+        url:   String(best.raw.link || "").replace(/^http:/, "https:"),
+        video: media.upload_video_link || null,
+        thumb: media.thumbnail || media.cover_image || null,
+        secs:  media.duration || null
       });
     });
   } catch (e) { /* proxy not updated yet, or football360 down - no highlights, no harm */ }
@@ -489,12 +498,73 @@ function youtubeSearch(m){
   return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
 }
 
-function highlightLink(m){
+function runtime(secs){
+  if (!secs) return "";
+  return " \u00b7 " + Math.floor(secs/60) + ":" + String(Math.round(secs%60)).padStart(2,"0");
+}
+
+function highlightInfo(m){
   if (m.state !== "post") return null;
   const hit = HL.get(m.id);
-  if (hit) return { url: hit.url, label: "Highlights" + (hit.mins ? ` \u00b7 ${hit.mins} min` : ""), weak: false };
-  if (m.src === "espn") return { url: youtubeSearch(m), label: "Find highlights", weak: true };
+  if (hit) return {
+    kind: hit.video ? "video" : "link",
+    url: hit.url, video: hit.video, thumb: hit.thumb,
+    label: "Highlights" + runtime(hit.secs)
+  };
+  if (m.src === "espn") return { kind: "search", url: youtubeSearch(m), label: "Find highlights" };
   return null;
+}
+
+/* Plays the clip in place. Nothing is fetched until the button is pressed -
+   the poster is a thumbnail, the video itself is only requested on click.
+   If the clip fails to load (their CDN moves it, or Iran's network is down)
+   the row falls back to the football360 page instead of just breaking. */
+function highlightNode(info){
+  const wrap = el("div","hlrow");
+
+  if (info.kind !== "video") {
+    const a = el("a","hl" + (info.kind === "search" ? " weak" : ""));
+    a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+    a.appendChild(el("span","play","\u25b6"));
+    a.appendChild(el("span", null, info.label));
+    wrap.appendChild(a);
+    return wrap;
+  }
+
+  const btn = el("button","hl");
+  btn.appendChild(el("span","play","\u25b6"));
+  btn.appendChild(el("span", null, info.label));
+
+  const src = el("a","hlsrc","football360.ir");
+  src.href = info.url; src.target = "_blank"; src.rel = "noopener";
+
+  wrap.appendChild(btn);
+  wrap.appendChild(src);
+
+  btn.addEventListener("click", () => {
+    const box = el("div","player");
+    const v = document.createElement("video");
+    v.controls = true; v.autoplay = true; v.playsInline = true; v.preload = "none";
+    if (info.thumb) v.poster = info.thumb;
+    v.src = info.video;
+    v.onerror = () => {
+      box.innerHTML = "";
+      const a = el("a","hl");
+      a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+      a.appendChild(el("span","play","\u25b6"));
+      a.appendChild(el("span", null, "Video unavailable \u2014 open on football360"));
+      box.appendChild(a);
+    };
+    box.appendChild(v);
+    const foot = el("div","hlmeta");
+    const link = el("a","hlsrc","football360.ir");
+    link.href = info.url; link.target = "_blank"; link.rel = "noopener";
+    foot.appendChild(link);
+    box.appendChild(foot);
+    wrap.replaceWith(box);
+  });
+
+  return wrap;
 }
 
 /* ---------------- rendering ---------------- */
@@ -551,7 +621,7 @@ function matchRow(m){
   b.appendChild(statusCell(m));
   b.appendChild(el("div","gnum ca" + (played && as != null ? (aState === "won" ? " won" : "") : " none"), played && as != null ? String(as) : "–"));
 
-  const hl = highlightLink(m);
+  const hl = highlightInfo(m);
 
   if (m.goalsHome.length || m.goalsAway.length || m.pen) {
     b.appendChild(scorerCell(m.goalsHome, "ch"));
@@ -563,15 +633,7 @@ function matchRow(m){
 
   row.appendChild(b);
 
-  if (hl) {
-    const wrap = el("div","hlrow");
-    const a = el("a","hl" + (hl.weak ? " weak" : ""));
-    a.href = hl.url; a.target = "_blank"; a.rel = "noopener";
-    a.appendChild(el("span","play","\u25b6"));
-    a.appendChild(el("span", null, hl.label));
-    wrap.appendChild(a);
-    row.appendChild(wrap);
-  }
+  if (hl) row.appendChild(highlightNode(hl));
 
   return row;
 }
