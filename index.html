@@ -512,8 +512,10 @@ async function fetchIranHighlights(matches){
 }
 
 // For the European leagues there is no reliable feed, so send the user to a search.
-function youtubeSearch(m, comp){
-  const q = `${m.home.name} vs ${m.away.name} highlights${comp ? " " + comp : ""}`;
+function youtubeSearch(m){
+  // Team names plus "highlights" only. Adding the competition pulled in
+  // fan-filmed uploads that keyword-stuff their titles.
+  const q = `${m.home.name} vs ${m.away.name} highlights`;
   return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
 }
 
@@ -522,7 +524,7 @@ function runtime(secs){
   return " \u00b7 " + Math.floor(secs/60) + ":" + String(Math.round(secs%60)).padStart(2,"0");
 }
 
-function highlightInfo(m, comp){
+function highlightInfo(m){
   if (m.state !== "post") return null;
   const hit = HL.get(m.id);
   if (hit) return {
@@ -530,7 +532,7 @@ function highlightInfo(m, comp){
     url: hit.url, video: hit.video, thumb: hit.thumb,
     label: "Highlights" + runtime(hit.secs)
   };
-  if (m.src === "espn") return { kind: "search", url: youtubeSearch(m, comp), label: "Find highlights" };
+  if (m.src === "espn") return { kind: "search", url: youtubeSearch(m), label: "Find highlights" };
   return null;
 }
 
@@ -617,7 +619,7 @@ function scorerCell(lines, side){
   return c;
 }
 
-function matchRow(m, cfg){
+function matchRow(m){
   const played = m.state === "in" || m.state === "post";
   const hs = m.home.score, as = m.away.score;
 
@@ -640,7 +642,7 @@ function matchRow(m, cfg){
   b.appendChild(statusCell(m));
   b.appendChild(el("div","gnum ca" + (played && as != null ? (aState === "won" ? " won" : "") : " none"), played && as != null ? String(as) : "–"));
 
-  const hl = highlightInfo(m, cfg && cfg.name);
+  const hl = highlightInfo(m);
 
   if (m.goalsHome.length || m.goalsAway.length || m.pen) {
     b.appendChild(scorerCell(m.goalsHome, "ch"));
@@ -674,7 +676,7 @@ function leagueCard(cfg, matches, logo, failed, source){
   else if (!matches.length) card.appendChild(el("div","empty","No matches on this date."));
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
-    matches.forEach(m => card.appendChild(matchRow(m, cfg)));
+    matches.forEach(m => card.appendChild(matchRow(m)));
     if (cfg.src === "tsdb") {
       card.appendChild(el("div","note", source === "football360"
         ? "Live scores and table from football360.ir. Goal scorers are not published in that feed."
