@@ -676,7 +676,7 @@ function leagueCard(cfg, matches, logo, failed, source){
   else if (!matches.length) card.appendChild(el("div","empty","No matches on this date."));
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
-    matches.forEach(m => card.appendChild(matchRow(m)));
+    matches.forEach(m => card.appendChild(tagRow(matchRow(m), cfg, m)));
     if (cfg.src === "tsdb") {
       card.appendChild(el("div","note", source === "football360"
         ? "Live scores and table from football360.ir. Goal scorers are not published in that feed."
@@ -721,13 +721,62 @@ async function loadResults(){
 
   const stamp = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
   const foot = el("div","meta", total + " match" + (total === 1 ? "" : "es") + " · updated " + stamp +
-    " · reload to refresh · no API key, no daily limit");
+    " · live scores refresh on their own · no API key, no daily limit");
   foot.style.marginTop = "14px";
   $("content").appendChild(foot);
 
   if (broken === LEAGUES.length) {
     $("error").innerHTML = "<b>Could not reach either data source.</b><br>Check your internet connection and reload.";
     $("error").classList.remove("hide");
+  }
+}
+
+/* ---------------- live tick ----------------
+   Only the rows of matches that are in play are refetched and swapped out.
+   Everything else — scroll position, standings, an open highlight — is left
+   alone, so this never yanks the page around while you are reading it. */
+
+const LIVE_MS = 60000;
+let liveBusy = false;
+
+function tagRow(row, cfg, m){
+  row.dataset.lg  = cfg.key;
+  row.dataset.mid = cfg.key + "|" + m.id;
+  if (m.state === "in") row.dataset.live = "1"; else delete row.dataset.live;
+  return row;
+}
+
+async function tickLive(){
+  if (liveBusy || document.hidden) return;
+  if (routeOf(location.hash).view !== "results") return;
+  if (ymd(day) !== ymd(new Date())) return;   // only the live day polls
+
+  const rows = Array.prototype.slice.call(document.querySelectorAll('.match[data-live="1"]'));
+  if (!rows.length) return;
+
+  const byId = new Map();
+  document.querySelectorAll(".match[data-mid]").forEach(r => byId.set(r.dataset.mid, r));
+  const keys = Array.from(new Set(rows.map(r => r.dataset.lg)));
+
+  liveBusy = true;
+  try {
+    const target = ymd(day);
+    for (const key of keys){
+      const cfg = LEAGUES.find(l => l.key === key);
+      if (!cfg) continue;
+      let res = null;
+      try { res = await fetchLeague(cfg, day); } catch (e) { continue; }
+      if (!res || !res.matches) continue;
+      res.matches.forEach(m => {
+        if (isNaN(m.kickoff) || ymd(m.kickoff) !== target) return;
+        const old = byId.get(cfg.key + "|" + m.id);
+        if (!old || !old.parentNode) return;
+        if (old.dataset.live !== "1" && m.state !== "in") return;
+        old.replaceWith(tagRow(matchRow(m), cfg, m));
+      });
+    }
+  } finally {
+    liveBusy = false;
   }
 }
 
@@ -972,6 +1021,8 @@ function route(){
 }
 
 window.addEventListener("hashchange", route);
+setInterval(tickLive, LIVE_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tickLive(); });
 
 // Old bookmarks used ?view=standings&league=... — send those to the hash route
 if (!location.hash && params.get("view") === "standings" && params.get("league")) {
