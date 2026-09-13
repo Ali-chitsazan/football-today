@@ -677,11 +677,6 @@ function leagueCard(cfg, matches, logo, failed, source){
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
     matches.forEach(m => card.appendChild(tagRow(matchRow(m), cfg, m)));
-    if (cfg.src === "tsdb") {
-      card.appendChild(el("div","note", source === "football360"
-        ? "Live scores and table from football360.ir. Goal scorers are not published in that feed."
-        : "Fallback source (TheSportsDB): results and kickoff times only, no goal scorers."));
-    }
   }
   return card;
 }
@@ -709,21 +704,14 @@ async function loadResults(){
   }
 
   $("content").innerHTML = "";
-  let total = 0, broken = 0;
+  let broken = 0;
   LEAGUES.forEach((cfg, i) => {
     const r = results[i];
     if (r.matches === null) { broken++; $("content").appendChild(leagueCard(cfg, [], null, true, null)); return; }
     // keep only matches whose kickoff falls on the chosen day in local time
     const mine = r.matches.filter(m => !isNaN(m.kickoff) && ymd(m.kickoff) === target);
-    total += mine.length;
     $("content").appendChild(leagueCard(cfg, mine, r.logo, false, r.source));
   });
-
-  const stamp = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
-  const foot = el("div","meta", total + " match" + (total === 1 ? "" : "es") + " · updated " + stamp +
-    " · live scores refresh on their own · no API key, no daily limit");
-  foot.style.marginTop = "14px";
-  $("content").appendChild(foot);
 
   if (broken === LEAGUES.length) {
     $("error").innerHTML = "<b>Could not reach either data source.</b><br>Check your internet connection and reload.";
