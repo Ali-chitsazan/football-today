@@ -124,6 +124,8 @@ button.hl:hover{background:var(--chip)}
 .hlsrc:hover{text-decoration:underline}
 .player{max-width:620px;margin:9px auto 0}
 .player video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px}
+.player iframe{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px;border:0}
+.hl.livebtn{color:#c0392b;border-color:#e6b8b2}
 .hlmeta{text-align:right;margin-top:4px}
 .empty{padding:14px;color:var(--muted);font-size:13.5px}
 .note{padding:8px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
@@ -201,6 +203,14 @@ const TSDB = "https://www.thesportsdb.com/api/v1/json/123";
 const IRAN_PROXY = "https://football-iran-proxy.ali-chitsazan.workers.dev";
 /* ============================================================ */
 const IRAN_LEAGUE = "4742";
+
+// The AFC Hub streams ACL Elite matches free on YouTube. The channel RSS feed
+// lists the live streams with the two team names in the title, which is enough
+// to pin each stream to a match. YouTube sends no CORS header, so it goes
+// through the same Worker as football360. If that route is not deployed the
+// page falls back to the channel's current stream, whatever that happens to be.
+const AFC_CHANNEL = "UCnj0TjaM0wyxkAWW_nz8_1g";
+const AFC_CHANNEL_URL = "https://www.youtube.com/@TheAFCHub/streams";
 
 const LEAGUES = [
   { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe"  },
@@ -517,6 +527,90 @@ async function fetchIranHighlights(matches){
   return map;
 }
 
+/* ---------------- AFC live streams ---------------- */
+
+let AFC = new Map();      // match id -> youtube video id
+let AFC_OK = false;       // did the feed actually load this time round
+
+// "Al-Sadd SC" and "Al Sadd", "Traktor Sazi" and "Tractor FC" have to meet
+// somewhere, so both sides are reduced to bare words and the filler dropped.
+const AFC_SKIP = new Set(["fc","sc","club","al","united","city","sazi","pfc","afc","the"]);
+function afcWords(name){
+  return String(name || "")
+    .toLowerCase()
+    .replace(/k/g, "c")                       // Traktor / Tractor
+    .replace(/[^a-z]+/g, " ")
+    .split(" ")
+    .filter(w => w.length > 2 && !AFC_SKIP.has(w));
+}
+
+async function fetchAfcStreams(matches){
+  AFC = new Map(); AFC_OK = false;
+  if (!IRAN_PROXY || !matches.length) return;
+  let xml;
+  try {
+    const r = await fetch(`${IRAN_PROXY}/yt/afc`);
+    if (!r.ok) return;
+    xml = new DOMParser().parseFromString(await r.text(), "text/xml");
+  } catch (e) { return; }                     // route not deployed, or YouTube down
+
+  const feed = Array.prototype.map.call(xml.getElementsByTagName("entry"), e => {
+    const id = e.getElementsByTagName("yt:videoId")[0] || e.getElementsByTagName("videoId")[0];
+    const t  = e.getElementsByTagName("title")[0];
+    return { id: id && id.textContent, title: (t && t.textContent) || "" };
+  }).filter(x => x.id);
+  if (!feed.length) return;
+  AFC_OK = true;
+
+  matches.forEach(m => {
+    const h = afcWords(m.home.name), a = afcWords(m.away.name);
+    const hit = feed.find(f => {
+      if (!/live/i.test(f.title)) return false;
+      const w = afcWords(f.title);
+      return h.some(x => w.includes(x)) && a.some(x => w.includes(x));
+    });
+    if (hit) AFC.set(m.id, hit.id);
+  });
+}
+
+// Shown only while a match is actually in play.
+function afcLive(m){
+  if (m.state !== "in") return null;
+  const id = AFC.get(m.id);
+  if (id) return { embed: "https://www.youtube.com/embed/" + id + "?autoplay=1", exact: true };
+  if (AFC_OK) return null;                    // feed worked and this match is not on it
+  return { embed: "https://www.youtube.com/embed/live_stream?channel=" + AFC_CHANNEL + "&autoplay=1", exact: false };
+}
+
+/* Same click-to-play idea as the highlights: nothing loads from YouTube until
+   the button is pressed. */
+function liveNode(info){
+  const wrap = el("div","hlrow");
+  const btn = el("button","hl livebtn");
+  btn.appendChild(el("span","play","▶"));
+  btn.appendChild(el("span", null, info.exact ? "Watch live" : "Watch live (AFC channel)"));
+  const src = el("a","hlsrc","The AFC Hub");
+  src.href = AFC_CHANNEL_URL; src.target = "_blank"; src.rel = "noopener";
+  wrap.appendChild(btn); wrap.appendChild(src);
+
+  btn.addEventListener("click", () => {
+    const box = el("div","player");
+    const f = document.createElement("iframe");
+    f.src = info.embed;
+    f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    f.allowFullscreen = true;
+    f.referrerPolicy = "origin-when-cross-origin";
+    box.appendChild(f);
+    const foot = el("div","hlmeta");
+    const a = el("a","hlsrc","Open on YouTube");
+    a.href = AFC_CHANNEL_URL; a.target = "_blank"; a.rel = "noopener";
+    foot.appendChild(a);
+    box.appendChild(foot);
+    wrap.replaceWith(box);
+  });
+  return wrap;
+}
+
 // For the European leagues there is no reliable feed, so send the user to a search.
 function youtubeSearch(m){
   // Team names plus "highlights" only. Adding the competition pulled in
@@ -662,6 +756,9 @@ function matchRow(m){
 
   if (hl) row.appendChild(highlightNode(hl));
 
+  const lv = afcLive(m);
+  if (lv) row.appendChild(liveNode(lv));
+
   return row;
 }
 
@@ -708,6 +805,14 @@ async function loadResults(){
       !isNaN(m.kickoff) && ymd(m.kickoff) === target && m.state === "post" && m.home.score != null);
     if (done.length) HL = await fetchIranHighlights(done);
   }
+
+  // AFC streams are only worth asking for while an Iranian match is in play
+  const afcCfg = LEAGUES.find(l => l.key === "afc.champions");
+  const afcIdx = LEAGUES.indexOf(afcCfg);
+  const afcRes = afcIdx >= 0 ? results[afcIdx] : null;
+  await fetchAfcStreams(((afcRes && afcRes.matches) || []).filter(m =>
+    !isNaN(m.kickoff) && ymd(m.kickoff) === target && m.state === "in"
+    && (!afcCfg.only || afcCfg.only.test(m.home.name) || afcCfg.only.test(m.away.name))));
 
   $("content").innerHTML = "";
   let broken = 0;
@@ -762,12 +867,21 @@ async function tickLive(){
       let res = null;
       try { res = await fetchLeague(cfg, day); } catch (e) { continue; }
       if (!res || !res.matches) continue;
+      if (cfg.key === "afc.champions") {
+        await fetchAfcStreams(res.matches.filter(m =>
+          !isNaN(m.kickoff) && ymd(m.kickoff) === target && m.state === "in"
+          && (!cfg.only || cfg.only.test(m.home.name) || cfg.only.test(m.away.name))));
+      }
       res.matches.forEach(m => {
         if (isNaN(m.kickoff) || ymd(m.kickoff) !== target) return;
         const old = byId.get(cfg.key + "|" + m.id);
         if (!old || !old.parentNode) return;
         if (old.dataset.live !== "1" && m.state !== "in") return;
-        old.replaceWith(tagRow(matchRow(m), cfg, m));
+        const fresh = tagRow(matchRow(m), cfg, m);
+        // A row with a player open only gets its scoreline patched, so a stream
+        // or a highlight you are watching is not cut off by the refresh.
+        if (old.querySelector(".player")) old.querySelector(".board").replaceWith(fresh.querySelector(".board"));
+        else old.replaceWith(fresh);
       });
     }
   } finally {
