@@ -124,7 +124,6 @@ button.hl:hover{background:var(--chip)}
 .hlsrc:hover{text-decoration:underline}
 .player{max-width:620px;margin:9px auto 0}
 .player video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px}
-.player iframe{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px;border:0}
 .hl.livebtn{color:#c0392b;border-color:#e6b8b2}
 .hlmeta{text-align:right;margin-top:4px}
 .empty{padding:14px;color:var(--muted);font-size:13.5px}
@@ -210,7 +209,7 @@ const IRAN_LEAGUE = "4742";
 // through the same Worker as football360. If that route is not deployed the
 // page falls back to the channel's current stream, whatever that happens to be.
 const AFC_CHANNEL = "UCnj0TjaM0wyxkAWW_nz8_1g";
-const AFC_CHANNEL_URL = "https://www.youtube.com/@TheAFCHub/streams";
+const AFC_LIVE_URL = "https://www.youtube.com/@TheAFCHub/live";
 
 const LEAGUES = [
   { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe"  },
@@ -223,7 +222,7 @@ const LEAGUES = [
   // ESPN publishes no country on AFC teams, so Iranian clubs are matched by name.
   // Anything not on this list is filtered out of the card; the table link still
   // shows the full competition.
-  { key:"afc.champions", drop:0,  src:"espn", name:"AFC Champions League Elite", country:"Asia",
+  { key:"afc.champions", drop:0,  src:"espn", name:"AFC Champions League Elite", country:"Asia", stream:true,
     only: /esteghlal|persepolis|sepahan|trakt|tract|foolad|nassaji|gol[- ]?gohar|zob ?ahan|sanat naft|naft |malavan|shams azar|paykan|havadar|chadormalu|aluminium|kheybar|fajr sepasi|mes rafsanjan|mes kerman|pars jonoubi|machine sazi|saipa/i,
     emptyText: "No Iranian club playing on this date." }
 ];
@@ -573,41 +572,23 @@ async function fetchAfcStreams(matches){
   });
 }
 
-// Shown only while a match is actually in play.
-function afcLive(m){
+// Shown only while a match is actually in play. AFC blocks its videos from
+// playing on other sites ("this video contains content from Asian Football
+// Confederation, who has blocked it"), so this can only ever be a link out.
+function afcStream(m){
   if (m.state !== "in") return null;
   const id = AFC.get(m.id);
-  if (id) return { embed: "https://www.youtube.com/embed/" + id + "?autoplay=1", exact: true };
-  if (AFC_OK) return null;                    // feed worked and this match is not on it
-  return { embed: "https://www.youtube.com/embed/live_stream?channel=" + AFC_CHANNEL + "&autoplay=1", exact: false };
+  if (id) return { url: "https://www.youtube.com/watch?v=" + id, exact: true };
+  return { url: AFC_LIVE_URL, exact: false };
 }
 
-/* Same click-to-play idea as the highlights: nothing loads from YouTube until
-   the button is pressed. */
 function liveNode(info){
   const wrap = el("div","hlrow");
-  const btn = el("button","hl livebtn");
-  btn.appendChild(el("span","play","▶"));
-  btn.appendChild(el("span", null, info.exact ? "Watch live" : "Watch live (AFC channel)"));
-  const src = el("a","hlsrc","The AFC Hub");
-  src.href = AFC_CHANNEL_URL; src.target = "_blank"; src.rel = "noopener";
-  wrap.appendChild(btn); wrap.appendChild(src);
-
-  btn.addEventListener("click", () => {
-    const box = el("div","player");
-    const f = document.createElement("iframe");
-    f.src = info.embed;
-    f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
-    f.allowFullscreen = true;
-    f.referrerPolicy = "origin-when-cross-origin";
-    box.appendChild(f);
-    const foot = el("div","hlmeta");
-    const a = el("a","hlsrc","Open on YouTube");
-    a.href = AFC_CHANNEL_URL; a.target = "_blank"; a.rel = "noopener";
-    foot.appendChild(a);
-    box.appendChild(foot);
-    wrap.replaceWith(box);
-  });
+  const a = el("a","hl livebtn");
+  a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+  a.appendChild(el("span","play","\u25b6"));
+  a.appendChild(el("span", null, info.exact ? "Watch live on YouTube" : "Live on The AFC Hub"));
+  wrap.appendChild(a);
   return wrap;
 }
 
@@ -719,7 +700,7 @@ function scorerCell(lines, side){
   return c;
 }
 
-function matchRow(m){
+function matchRow(m, cfg){
   const played = m.state === "in" || m.state === "post";
   const hs = m.home.score, as = m.away.score;
 
@@ -756,8 +737,10 @@ function matchRow(m){
 
   if (hl) row.appendChild(highlightNode(hl));
 
-  const lv = afcLive(m);
-  if (lv) row.appendChild(liveNode(lv));
+  if (cfg && cfg.stream) {
+    const lv = afcStream(m);
+    if (lv) row.appendChild(liveNode(lv));
+  }
 
   return row;
 }
@@ -779,7 +762,7 @@ function leagueCard(cfg, matches, logo, failed, source){
   else if (!matches.length) card.appendChild(el("div","empty", cfg.emptyText || "No matches on this date."));
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
-    matches.forEach(m => card.appendChild(tagRow(matchRow(m), cfg, m)));
+    matches.forEach(m => card.appendChild(tagRow(matchRow(m, cfg), cfg, m)));
   }
   return card;
 }
@@ -877,7 +860,7 @@ async function tickLive(){
         const old = byId.get(cfg.key + "|" + m.id);
         if (!old || !old.parentNode) return;
         if (old.dataset.live !== "1" && m.state !== "in") return;
-        const fresh = tagRow(matchRow(m), cfg, m);
+        const fresh = tagRow(matchRow(m, cfg), cfg, m);
         // A row with a player open only gets its scoreline patched, so a stream
         // or a highlight you are watching is not cut off by the refresh.
         if (old.querySelector(".player")) old.querySelector(".board").replaceWith(fresh.querySelector(".board"));
