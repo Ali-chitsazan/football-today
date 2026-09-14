@@ -1015,7 +1015,12 @@ async function loadStandings(viewLeague){
         getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${from}-${to}&limit=1000`)
           .then(formFromEspn).catch(() => new Map())
       ]);
-      const groups = j.children || [];
+      const groups = (j.children || []).slice();
+      // West before East on the AFC table - the Iranian clubs are in the West.
+      if (cfg.key === "afc.champions") {
+        const side = n => /west/i.test(n || "") ? 0 : /east/i.test(n || "") ? 1 : 2;
+        groups.sort((a, b) => side(a.name) - side(b.name));
+      }
       $("content").innerHTML = "";
       if (!groups.length) { $("content").appendChild(el("div","empty","No table published for this competition right now.")); return; }
       groups.forEach(g => {
