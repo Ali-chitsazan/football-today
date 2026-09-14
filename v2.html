@@ -209,7 +209,13 @@ const LEAGUES = [
   { key:"ita.1", drop:3,          src:"espn", name:"Serie A",                 country:"Italy"   },
   { key:"ger.1", drop:2,          src:"espn", name:"Bundesliga",              country:"Germany" },
   { key:"fra.1", drop:2,          src:"espn", name:"Ligue 1",                 country:"France"  },
-  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran"    }
+  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran"    },
+  // ESPN publishes no country on AFC teams, so Iranian clubs are matched by name.
+  // Anything not on this list is filtered out of the card; the table link still
+  // shows the full competition.
+  { key:"afc.champions", drop:0,  src:"espn", name:"AFC Champions League Elite", country:"Asia",
+    only: /esteghlal|persepolis|sepahan|trakt|tract|foolad|nassaji|gol[- ]?gohar|zob ?ahan|sanat naft|naft |malavan|shams azar|paykan|havadar|chadormalu|aluminium|kheybar|fajr sepasi|mes rafsanjan|mes kerman|pars jonoubi|machine sazi|saipa/i,
+    emptyText: "No Iranian club playing on this date." }
 ];
 
 const $ = id => document.getElementById(id);
@@ -673,7 +679,7 @@ function leagueCard(cfg, matches, logo, failed, source){
   card.appendChild(head);
 
   if (failed) card.appendChild(el("div","empty","Could not reach the data source for this league."));
-  else if (!matches.length) card.appendChild(el("div","empty","No matches on this date."));
+  else if (!matches.length) card.appendChild(el("div","empty", cfg.emptyText || "No matches on this date."));
   else {
     matches.sort((a,b) => a.kickoff - b.kickoff);
     matches.forEach(m => card.appendChild(tagRow(matchRow(m), cfg, m)));
@@ -709,7 +715,8 @@ async function loadResults(){
     const r = results[i];
     if (r.matches === null) { broken++; $("content").appendChild(leagueCard(cfg, [], null, true, null)); return; }
     // keep only matches whose kickoff falls on the chosen day in local time
-    const mine = r.matches.filter(m => !isNaN(m.kickoff) && ymd(m.kickoff) === target);
+    const mine = r.matches.filter(m => !isNaN(m.kickoff) && ymd(m.kickoff) === target
+      && (!cfg.only || cfg.only.test(m.home.name) || cfg.only.test(m.away.name)));
     $("content").appendChild(leagueCard(cfg, mine, r.logo, false, r.source));
   });
 
