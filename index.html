@@ -415,8 +415,25 @@ async function fetchIranF360(){
 async function fetchLeague(cfg, target){
   const from = compact(shift(target,-1)), to = compact(shift(target,1));
   if (cfg.src === "espn") {
-    const j = await getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${from}-${to}`);
-    return { matches: espnMatches(j), logo: j.leagues && j.leagues[0] && j.leagues[0].logos && j.leagues[0].logos[0] && j.leagues[0].logos[0].href, source: "espn" };
+    // The three-day window is what catches a match that falls on a neighbouring
+    // day in local time, but ESPN serves that range from a stale cache: a game
+    // can still read "Scheduled" an hour after kick-off. Asking for the single
+    // day returns live status, so both are fetched and the single day wins.
+    const [wide, sameDay] = await Promise.all([
+      getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${from}-${to}`),
+      getJSON(`${ESPN}/${cfg.key}/scoreboard?dates=${compact(target)}`).catch(() => null)
+    ]);
+    const matches = espnMatches(wide);
+    if (sameDay) {
+      const fresh = new Map(espnMatches(sameDay).map(m => [m.id, m]));
+      matches.forEach((m, i) => {
+        const f = fresh.get(m.id);
+        if (f) { matches[i] = f; fresh.delete(m.id); }
+      });
+      fresh.forEach(m => matches.push(m));   // in the day call but not the range
+    }
+    const j = wide;
+    return { matches, logo: j.leagues && j.leagues[0] && j.leagues[0].logos && j.leagues[0].logos[0] && j.leagues[0].logos[0].href, source: "espn" };
   }
   // football360 when the proxy is configured; TheSportsDB whenever that is unavailable
   if (IRAN_PROXY) {
