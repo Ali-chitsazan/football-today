@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<!-- Add to Home Screen -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-ball-180.png">
+<link rel="icon" href="icon-ball-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Football">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1014" media="(prefers-color-scheme: dark)">
+<title>Football Today</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#f0f2f5; --line:#e2e5ea;
+  --text:#15181d; --muted:#6b7280; --faint:#9aa1ab;
+  --accent:#1d6f42; --live:#d92b2b; --chip:#eef1f5;
+  --win-bg:#e3f5e9; --win-line:#bfe6cd; --win-text:#0f5a34;
+  --drop-bg:rgba(217,43,43,.09);
+  --form-w:#34a853; --form-l:#d92b2b; --form-d:#9aa1ab; --form-empty:#ccd2da;
+  --shadow:0 1px 2px rgba(16,20,28,.06),0 4px 14px rgba(16,20,28,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1014; --panel:#151a20; --panel-2:#1b2129; --line:#252d37;
+    --text:#e8ecf1; --muted:#98a2b0; --faint:#6d7784;
+    --accent:#3fbf74; --live:#ff5a5a; --chip:#212932;
+    --win-bg:rgba(63,191,116,.16); --win-line:rgba(63,191,116,.34); --win-text:#8ce0b0;
+    --drop-bg:rgba(255,90,90,.13);
+    --form-w:#3fbf74; --form-l:#ff5a5a; --form-d:#69737f; --form-empty:#39424e;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1014; --panel:#151a20; --panel-2:#1b2129; --line:#252d37;
+  --text:#e8ecf1; --muted:#98a2b0; --faint:#6d7784;
+  --accent:#3fbf74; --live:#ff5a5a; --chip:#212932;
+  --win-bg:rgba(63,191,116,.16); --win-line:rgba(63,191,116,.34); --win-text:#8ce0b0;
+  --drop-bg:rgba(255,90,90,.13);
+  --form-w:#3fbf74; --form-l:#ff5a5a; --form-d:#69737f; --form-empty:#39424e;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left));
+  padding-right:max(16px, env(safe-area-inset-right));
+  padding-bottom:calc(56px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:820px;margin:0 auto}
+header{padding-block:calc(22px + env(safe-area-inset-top)) 14px}
+h1{font-size:22px;margin:0 0 2px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+button,.btn{
+  font:inherit;font-size:13px;color:var(--text);background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;
+  text-decoration:none;display:inline-block;
+}
+button:hover,.btn:hover{background:var(--panel-2)}
+.spacer{flex:1}
+.meta{font-size:12px;color:var(--faint)}
+#dateLabel{font-weight:600;font-size:14px;padding:0 4px;min-width:150px;text-align:center}
+
+.notice{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--live);
+  border-radius:10px;padding:14px 16px;margin:16px 0;box-shadow:var(--shadow);font-size:14px}
+.hide{display:none}
+
+.league{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:14px 0;box-shadow:var(--shadow);overflow:hidden}
+.lhead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.lhead img{width:20px;height:20px;object-fit:contain}
+.lname{font-weight:650;font-size:14px}
+.lcountry{color:var(--faint);font-size:12px}
+.tablelink{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:7px}
+.tablelink:hover{background:var(--chip)}
+
+.match{padding:12px 14px;border-top:1px solid var(--line)}
+.match:first-of-type{border-top:none}
+.board{display:grid;grid-template-columns:1fr 66px 1fr;column-gap:10px;row-gap:4px;align-items:center;max-width:640px;margin:0 auto}
+.ch{justify-self:end;text-align:right;min-width:0;max-width:100%}
+.ca{justify-self:start;text-align:left;min-width:0;max-width:100%}
+.cm{justify-self:center;text-align:center;min-width:0}
+
+.tname{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;
+  padding:3px 9px;border-radius:8px;border:1px solid transparent;font-weight:550;font-size:14.5px}
+.ch.tname{flex-direction:row-reverse}
+.tname img{width:20px;height:20px;object-fit:contain;flex:none}
+.tname span{overflow-wrap:anywhere;line-height:1.22}
+.ch.tname span{text-align:right}
+.ca.tname span{text-align:left}
+.tname.won{background:var(--win-bg);border-color:var(--win-line);font-weight:700}
+.tname.lost{color:var(--muted)}
+
+.dash{color:var(--faint);font-weight:600;font-size:14px}
+.gnum{font-size:23px;font-weight:750;line-height:1.15;font-variant-numeric:tabular-nums;padding:0 9px}
+.gnum.won{color:var(--win-text)}
+.gnum.none{color:var(--faint);font-weight:500}
+
+.status{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.status.live{color:var(--live);font-weight:700}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live);margin-right:4px;animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+.scorers{font-size:11.5px;color:var(--muted);line-height:1.55;padding:2px 9px 0}
+.scorers div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.penline{font-size:11px;color:var(--muted);white-space:nowrap}
+.hlrow{text-align:center;margin-top:7px}
+.hl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--accent);
+  text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+.hl:hover{background:var(--chip)}
+.hl .play{font-size:9px;line-height:1}
+.hl.weak{color:var(--faint)}
+button.hl{cursor:pointer;background:var(--panel);font:inherit;font-size:11.5px;color:var(--accent)}
+button.hl:hover{background:var(--chip)}
+.hlsrc{font-size:10.5px;color:var(--faint);text-decoration:none;margin-left:9px}
+.hlsrc:hover{text-decoration:underline}
+.player{max-width:620px;margin:9px auto 0}
+.player video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px}
+.hl.livebtn{color:#c0392b;border-color:#e6b8b2}
+.hlmeta{text-align:right;margin-top:4px}
+.empty{padding:14px;color:var(--muted);font-size:13.5px}
+.note{padding:8px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+.tblwrap{overflow-x:auto}
+th,td{padding:8px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12px;border-top:none;background:var(--panel-2)}
+td.tm,th.tm{text-align:left;white-space:normal}
+td.tm{display:flex;align-items:center;gap:8px}
+td.tm img{width:18px;height:18px;object-fit:contain}
+.pos{color:var(--muted);width:28px}
+td.form{white-space:nowrap;text-align:right;padding-right:12px}
+.fdots{display:inline-flex;align-items:center;gap:5px}
+.fdot{width:18px;height:18px;border-radius:50%;flex:none;
+  display:inline-flex;align-items:center;justify-content:center}
+.fdot svg{width:12px;height:12px;display:block}
+.fdot.W{background:var(--form-w);color:var(--form-w)}
+.fdot.L{background:var(--form-l);color:var(--form-l)}
+.fdot.D{background:var(--form-d);color:var(--form-d)}
+.fdot.empty{background:transparent;border:2px solid var(--form-empty)}
+/* ring marks the most recent match */
+.fdot.latest{outline:2px solid currentColor;outline-offset:2px}
+tr.drop td{background:var(--drop-bg)}
+tr.drop td.tm{font-weight:600}
+@media(max-width:520px){
+  .match{padding:11px 8px}
+  .board{grid-template-columns:1fr 54px 1fr;column-gap:6px}
+  .tname{font-size:13px;gap:6px;padding:3px 7px}
+  .tname img{width:17px;height:17px}
+  .gnum{font-size:20px;padding:0 7px}
+  .scorers{font-size:11px;padding:2px 7px 0}
+  .fdot{width:15px;height:15px}
+  .fdot svg{width:10px;height:10px}
+  .fdots{gap:4px}
+  .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1 id="pageTitle">Football Today</h1>
+  <div class="sub" id="pageSub">Top 5 leagues · Champions League · Persian Gulf Pro League</div>
+  <div class="bar" id="topBar">
+    <button id="prevBtn" title="Previous day">‹</button>
+    <span id="dateLabel">—</span>
+    <button id="nextBtn" title="Next day">›</button>
+    <button id="todayBtn">Today</button>
+    <button id="reloadBtn">Refresh</button>
+  </div>
+</header>
+
+<div id="error" class="notice hide"></div>
+<div id="content"></div>
+
+</div>
+
+<script>
+/* No API key. No daily limit. No date restriction.
+   Top 5 leagues + Champions League : ESPN's public scoreboard feed
+   Persian Gulf Pro League          : TheSportsDB free tier              */
+
+const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer";
+const ESPN_STANDINGS = "https://site.api.espn.com/apis/v2/sports/soccer";
+const TSDB = "https://www.thesportsdb.com/api/v1/json/123";
+
+/* ============================================================
+   Optional: paste your Cloudflare Worker URL between the quotes to use
+   football360.ir for the Iranian league (full table, live minute, logos).
+   See football-iran-proxy.js. Leave empty and the page uses TheSportsDB.
+   Example: "https://football-iran.yourname.workers.dev"
+   ============================================================ */
+const IRAN_PROXY = "https://football-iran-proxy.ali-chitsazan.workers.dev";
+/* ============================================================ */
+const IRAN_LEAGUE = "4742";
+
+// The AFC Hub streams ACL Elite matches free on YouTube. The channel RSS feed
+// lists the live streams with the two team names in the title, which is enough
+// to pin each stream to a match. YouTube sends no CORS header, so it goes
+// through the same Worker as football360. If that route is not deployed the
+// page falls back to the channel's current stream, whatever that happens to be.
+const AFC_CHANNEL = "UCnj0TjaM0wyxkAWW_nz8_1g";
+const AFC_LIVE_URL = "https://www.youtube.com/@TheAFCHub/live";
+
+const LEAGUES = [
+  { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe"  },
+  { key:"eng.1", drop:3,          src:"espn", name:"Premier League",          country:"England" },
+  { key:"esp.1", drop:3,          src:"espn", name:"La Liga",                 country:"Spain"   },
+  { key:"ita.1", drop:3,          src:"espn", name:"Serie A",                 country:"Italy"   },
+  { key:"ger.1", drop:2,          src:"espn", name:"Bundesliga",              country:"Germany" },
+  { key:"fra.1", drop:2,          src:"espn", name:"Ligue 1",                 country:"France"  },
+  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran"    },
+  // ESPN publishes no country on AFC teams, so Iranian clubs are matched by name.
+  // Anything not on this list is filtered out of the card; the table link still
+  // shows the full competition.
+  { key:"afc.champions", drop:0,  src:"espn", name:"AFC Champions League Elite", country:"Asia", stream:true,
+    only: /esteghlal|persepolis|sepahan|trakt|tract|foolad|nassaji|gol[- ]?gohar|zob ?ahan|sanat naft|naft |malavan|shams azar|paykan|havadar|chadormalu|aluminium|kheybar|fajr sepasi|mes rafsanjan|mes kerman|pars jonoubi|machine sazi|saipa/i,
+    emptyText: "No Iranian club playing on this date." }
+];
+
+const $ = id => document.getElementById(id);
+const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const ymd = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const compact = d => ymd(d).replace(/-/g,"");
+const shift = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const parseYmd = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+
+const params = new URLSearchParams(location.search);
+let day = params.get("date") ? parseYmd(params.get("date")) : new Date();
+
+// The whole page is one file, so the table is a view swap rather than a page load.
+// Hash routing (not pushState) because pushState is blocked on file:// URLs.
+function routeOf(hash){
+  if (/^#debug\b/.test(hash || "")) return { view: "debug" };
+  const m = /^#standings\/(.+)$/.exec(hash || "");
+  return m ? { view: "standings", league: decodeURIComponent(m[1]) } : { view: "results" };
+}
+
+/* ---------------- network ----------------
+   Every remote call goes through net(). It never throws - it returns
+   {ok, data, error} - so a source that breaks can only empty its own card
+   instead of taking the page down. One retry, a hard timeout, and one line in
+   a log that the #debug view prints. */
+
+const NET_LOG = [];
+const NET_TIMEOUT = 9000;
+
+async function net(url, opt){
+  opt = opt || {};
+  const rec = { at: new Date(), note: opt.note || "", url, status: 0, ms: 0, ok: false, error: "", tries: 0 };
+  NET_LOG.unshift(rec);
+  if (NET_LOG.length > 150) NET_LOG.pop();
+
+  const attempt = async () => {
+    rec.tries++;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), opt.timeout || NET_TIMEOUT);
+    try {
+      const r = await fetch(url, { signal: ctl.signal });
+      rec.status = r.status;
+      if (!r.ok) return { ok: false, error: "HTTP " + r.status };
+      const text = await r.text();
+      if (opt.as === "xml") return { ok: true, data: new DOMParser().parseFromString(text, "text/xml") };
+      return { ok: true, data: JSON.parse(text) };
+    } catch (e) {
+      return { ok: false, error: (e && e.name === "AbortError") ? "timeout" : String((e && e.message) || e) };
+    } finally { clearTimeout(timer); }
+  };
+
+  const t0 = Date.now();
+  let res = await attempt();
+  // Retry once, but not a timeout (already waited) and not a 4xx (a repeat
+  // will say the same thing).
+  if (!res.ok && res.error !== "timeout" && !/^HTTP 4/.test(res.error)) res = await attempt();
+  rec.ms = Date.now() - t0; rec.ok = res.ok; rec.error = res.error || "";
+  return res;
+}
+
+/* Successful responses are held briefly so the 60s tick and flipping between
+   days do not refetch what cannot have changed. */
+const CACHE = new Map();
+const TTL_LIVE = 25000, TTL_PAST = 600000, TTL_TABLE = 300000;
+
+async function cached(key, ttl, make, fresh){
+  const hit = CACHE.get(key);
+  if (!fresh && hit && Date.now() - hit.at < ttl) return hit.val;
+  const val = await make();
+  if (val && val.ok) CACHE.set(key, { at: Date.now(), val });
+  return val;
+}
+
+const isToday = d => ymd(d) === ymd(new Date());
+
+/* ---------------- normalise both sources into one shape ---------------- */
+
+function espnMatches(json){
+  return (json.events || []).map(ev => {
+    const c = ev.competitions[0];
+    const home = c.competitors.find(t => t.homeAway === "home") || c.competitors[0];
+    const away = c.competitors.find(t => t.homeAway === "away") || c.competitors[1];
+    const state = c.status.type.state;                       // pre | in | post
+    const hs = home.score === "" ? null : Number(home.score);
+    const as = away.score === "" ? null : Number(away.score);
+
+    // goal events
+    const gh = [], ga = [], sh = [];
+    (c.details || []).forEach(d => {
+      if (!d.scoringPlay) return;
+      const who = (d.athletesInvolved || []).map(a => a.shortName || a.displayName).join(", ") || "Unknown";
+      if (d.shootout) { sh.push(d.team && d.team.id === home.team.id ? "h" : "a"); return; }
+      const min = (d.clock && d.clock.displayValue) ? d.clock.displayValue : "";
+      const tag = d.penaltyKick ? " (p)" : (d.ownGoal ? " (og)" : "");
+      const line = (who + " " + min + tag).trim();
+      (d.team && d.team.id === home.team.id ? gh : ga).push(line);
+    });
+    // ESPN files own goals inconsistently; the scoreline is the truth, so move them if the counts disagree
+    if (hs != null && as != null && (gh.length !== hs || ga.length !== as)) {
+      const moveOg = (from, to) => {
+        for (let i = from.length - 1; i >= 0; i--) {
+          if (from[i].includes("(og)")) { to.push(from.splice(i,1)[0]); return true; }
+        }
+        return false;
+      };
+      let guard = 0;
+      while (gh.length > hs && ga.length < as && guard++ < 8 && moveOg(gh, ga)) {}
+      guard = 0;
+      while (ga.length > as && gh.length < hs && guard++ < 8 && moveOg(ga, gh)) {}
+    }
+
+    let pen = null;
+    if (sh.length) pen = { home: sh.filter(x => x === "h").length, away: sh.filter(x => x === "a").length };
+
+    return {
+      id: ev.id,
+      kickoff: new Date(ev.date),
+      state,
+      statusShort: c.status.type.shortDetail || c.status.displayClock || "",
+      halftime: c.status.type.name === "STATUS_HALFTIME",
+      home: { name: home.team.shortDisplayName || home.team.displayName, logo: home.team.logo, score: hs, winner: home.winner },
+      away: { name: away.team.shortDisplayName || away.team.displayName, logo: away.team.logo, score: as, winner: away.winner },
+      goalsHome: gh, goalsAway: ga, pen, src: "espn",
+      hasEvents: true
+    };
+  });
+}
+
+function tsdbMatches(json, liveMap){
+  return (json.events || []).map(e => {
+    const kickoff = e.strTimestamp ? new Date(e.strTimestamp.replace(" ", "T") + (e.strTimestamp.endsWith("Z") ? "" : "Z"))
+                                   : new Date(e.dateEvent + "T" + (e.strTime || "00:00:00") + "Z");
+    let hs = e.intHomeScore === null || e.intHomeScore === "" ? null : Number(e.intHomeScore);
+    let as = e.intAwayScore === null || e.intAwayScore === "" ? null : Number(e.intAwayScore);
+    let status = (e.strStatus || "").trim();
+    let state = "pre";
+
+    const live = liveMap && liveMap.get(String(e.idEvent));
+    if (live) {
+      state = "in";
+      hs = live.intHomeScore == null ? hs : Number(live.intHomeScore);
+      as = live.intAwayScore == null ? as : Number(live.intAwayScore);
+      status = live.strProgress || live.strStatus || "LIVE";
+    } else if (["FT","AET","PEN","Match Finished"].includes(status) || (hs != null && as != null && status !== "NS")) {
+      state = "post"; if (!status || status === "Match Finished") status = "FT";
+    }
+
+    return {
+      id: e.idEvent,
+      kickoff,
+      state,
+      statusShort: status || "FT",
+      halftime: status === "HT",
+      home: { name: e.strHomeTeam, logo: e.strHomeTeamBadge || null, score: hs, winner: null },
+      away: { name: e.strAwayTeam, logo: e.strAwayTeamBadge || null, score: as, winner: null },
+      goalsHome: [], goalsAway: [], pen: null, src: "tsdb",
+      hasEvents: false
+    };
+  });
+}
+
+// football360 leaves english_name in Persian for some clubs, so fill those in
+const IRAN_NAMES = {
+  "آلومینیوم اراک": "Aluminium Arak",
+  "فولاد": "Foolad",
+  "پیکان": "Paykan",
+  "فجر سپاسی": "Fajr Sepasi",
+  "گل گهر": "Gol Gohar",
+  "نساجی": "Nassaji",
+  "ذوب آهن": "Zob Ahan",
+  "صنعت نفت": "Sanat Naft",
+  "مس شهربابک": "Mes Shahr Babak",
+  "چادرملو اردکان": "Chadormalu"
+};
+const faKey = v => (v || "").replace(/\u200c/g, " ").replace(/\s+/g, " ").trim();
+const hasPersian = v => /[\u0600-\u06FF]/.test(v || "");
+
+function teamName(t){
+  if (!t) return "?";
+  const en = t.english_name || "";
+  if (en && !hasPersian(en)) return en;
+  return IRAN_NAMES[faKey(t.title)] || IRAN_NAMES[faKey(en)] || t.title || "?";
+}
+
+function f360Matches(list){
+  return (list || []).map(m => {
+    const type = (m.status && m.status.status_type) || "";
+    const finished = m.is_finished || type === "finished";
+    const notStarted = type === "notstarted" || m.is_postponed;
+    const state = m.is_postponed ? "pre" : (finished ? "post" : (notStarted ? "pre" : "in"));
+    const pen = (m.home_penalty_score != null && m.away_penalty_score != null)
+      ? { home: Number(m.home_penalty_score), away: Number(m.away_penalty_score) } : null;
+
+    let statusShort;
+    if (m.is_postponed) statusShort = "PP";
+    else if (state === "in") statusShort = (m.minute != null ? m.minute + "'" : "LIVE");
+    else if (state === "post") statusShort = pen ? "PEN" : "FT";
+    else statusShort = "";
+
+    const score = v => (state === "pre" || v == null || v === "") ? null : Number(v);
+    return {
+      id: String(m.id),
+      kickoff: new Date(Number(m.holds_at) * 1000),
+      state, statusShort, halftime: false, postponed: !!m.is_postponed,
+      home: { name: teamName(m.home_team), logo: (m.home_team && m.home_team.logo) || null, score: score(m.home_score), winner: null },
+      away: { name: teamName(m.away_team), logo: (m.away_team && m.away_team.logo) || null, score: score(m.away_score), winner: null },
+      goalsHome: [], goalsAway: [], pen, src: "f360",
+      faHome: (m.home_team && m.home_team.title) || "",
+      faAway: (m.away_team && m.away_team.title) || ""
+    };
+  });
+}
+
+// football360 changes its season id every year, so look up the current one instead of hardcoding it
+let f360TrendPromise = null;
+async function f360Trend(){
+  if (!f360TrendPromise) {
+    f360TrendPromise = (async () => {
+      const r = await net(`${IRAN_PROXY}/api/base/competitions/defaults/`, { note: "f360 competitions" });
+      if (!r.ok) return null;
+      const c = (r.data.competitions || []).find(x => x.english_name === "Persian Gulf Pro League");
+      return (c && c.current && c.current.id) || null;
+    })();
+    f360TrendPromise.then(v => { if (!v) f360TrendPromise = null; });   // let a later load retry
+  }
+  return f360TrendPromise;
+}
+
+// The raw fixture list, fetched once and used twice: the day's matches come
+// from it, and so does the Last 5 column on the Iranian table.
+async function fetchIranFixturesRaw(){
+  const trend = await f360Trend();
+  if (!trend) return { ok: false, error: "football360 competition id unavailable" };
+  const r = await net(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/fixtures/`, { note: "f360 fixtures" });
+  if (!r.ok) return r;
+  const list = r.data.data || r.data.results || (Array.isArray(r.data) ? r.data : []);
+  if (!list.length) return { ok: false, error: "football360 returned no fixtures" };
+  return { ok: true, data: list };
+}
+
+/* ---------------- fetching ---------------- */
+
+/* ESPN's date-RANGE scoreboard is not usable. It served stale data for hours
+   (a match still reading "Scheduled" an hour after kick-off) and since 16 Sep
+   it answers HTTP 400 for every range, in every league. Only single-day calls
+   are made. The two neighbouring days are fetched as well, because a match can
+   land on a different calendar day in local time, and the chosen day wins
+   wherever they disagree. */
+async function espnDay(cfg, target, opt){
+  const days = [shift(target,-1), target, shift(target,1)];
+  const res = await Promise.all(days.map((d, i) =>
+    cached("sb|" + cfg.key + "|" + compact(d), isToday(d) ? TTL_LIVE : TTL_PAST,
+      () => net(`${ESPN}/${cfg.key}/scoreboard?dates=${compact(d)}`, { note: cfg.key + " " + compact(d) }),
+      // the live tick must never be answered from the cache for the day on screen
+      i === 1 && opt && opt.fresh)));
+
+  if (!res.some(r => r.ok))
+    return { matches: null, error: res[1].error || res[0].error || "unreachable" };
+
+  const byId = new Map();
+  [0, 2, 1].forEach(i => { if (res[i].ok) espnMatches(res[i].data).forEach(m => byId.set(m.id, m)); });
+  const j = (res[1].ok ? res[1] : res.find(r => r.ok)).data;
+  const logos = j.leagues && j.leagues[0] && j.leagues[0].logos;
+  return { matches: [...byId.values()], logo: logos && logos[0] && logos[0].href, source: "espn" };
+}
+
+async function tsdbDay(cfg, target, opt){
+  const days = [shift(target,-1), target, shift(target,1)].map(ymd);
+  // The live feed is heavily rationed on the free tier. It is a bonus, never a
+  // blocker, so it gets a short timeout of its own.
+  const [live, ...pages] = await Promise.all([
+    net(`${TSDB}/livescore.php?s=Soccer`, { note: "tsdb livescore", timeout: 4000 }),
+    ...days.map(d => cached("tsdb|" + cfg.key + "|" + d, d === ymd(target) ? TTL_LIVE : TTL_PAST,
+      () => net(`${TSDB}/eventsday.php?d=${d}&l=${cfg.key}`, { note: "tsdb " + d }),
+      d === ymd(target) && opt && opt.fresh))
+  ]);
+  if (!pages.some(p => p.ok)) return { matches: null, error: pages[1].error || "unreachable" };
+
+  const liveMap = new Map();
+  if (live.ok) (((live.data && (live.data.livescore || live.data.events)) || []))
+    .filter(x => String(x.idLeague) === cfg.key)
+    .forEach(x => liveMap.set(String(x.idEvent), x));
+
+  const seen = new Set(), all = [];
+  pages.forEach(p => { if (p.ok) tsdbMatches(p.data, liveMap).forEach(m => {
+    if (!seen.has(m.id)) { seen.add(m.id); all.push(m); }
+  }); });
+  return { matches: all, logo: null, source: "thesportsdb" };
+}
+
+// football360 when the proxy is reachable, TheSportsDB whenever it is not.
+async function iranDay(cfg, target, opt){
+  if (IRAN_PROXY) {
+    const r = await cached("f360|fixtures", TTL_LIVE, fetchIranFixturesRaw, opt && opt.fresh);
+    if (r.ok) return { matches: f360Matches(r.data), logo: null, source: "football360" };
+  }
+  return tsdbDay(cfg, target, opt);
+}
+
+function leagueDay(cfg, target, opt){
+  return cfg.src === "espn" ? espnDay(cfg, target, opt) : iranDay(cfg, target, opt);
+}
+
+// The one definition of "a match belonging to this card on this day".
+function onDay(cfg, matches, target){
+  return (matches || []).filter(m =>
+    !isNaN(m.kickoff) && ymd(m.kickoff) === target &&
+    (!cfg.only || cfg.only.test(m.home.name) || cfg.only.test(m.away.name)));
+}
+
+/* ---------------- highlights ---------------- */
+
+/* football360 publishes a highlights post per match, titled
+   "خلاصه بازی {home} {a}-{b} {away}؛ ...".
+   There is no search endpoint, so we scan the newest video posts and match on
+   score plus team name. Everything here is best-effort: if it misses, the row
+   simply shows no highlight link. */
+
+let HL = new Map();
+
+const faDigits = s => (s || "")
+  .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+  .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660));
+
+const faNorm = s => faDigits(s)
+  .replace(/\u200c/g, " ")                 // zero-width non-joiner
+  .replace(/[\u064A\u0649]/g, "\u06CC")    // arabic ya -> persian
+  .replace(/\u0643/g, "\u06A9")            // arabic kaf -> persian
+  .replace(/\s+/g, " ").trim();
+
+const HL_PREFIX = "\u062e\u0644\u0627\u0635\u0647 \u0628\u0627\u0632\u06cc";   // "match highlights"
+
+function parseHighlightTitle(title){
+  const t = faNorm(title);
+  if (t.indexOf(HL_PREFIX) !== 0) return null;
+  const body = t.slice(HL_PREFIX.length).split("\u061b")[0].trim();   // cut at the semicolon
+  const m = body.match(/^(.+?)\s*(\d+)\s*[-\u2013\u2014]\s*(\d+)\s*(.+)$/);
+  if (!m) return null;
+  return { home: m[1].trim(), hs: Number(m[2]), as: Number(m[3]), away: m[4].trim() };
+}
+
+function faNameMatch(a, b){
+  a = faNorm(a); b = faNorm(b);
+  if (!a || !b) return false;
+  if (a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return true;
+  const at = a.split(" ").filter(x => x.length > 2);
+  const bt = b.split(" ").filter(x => x.length > 2);
+  return at.some(x => bt.some(y => x === y || x.indexOf(y) >= 0 || y.indexOf(x) >= 0));
+}
+
+const HL_PAGE = 60;        // posts per request
+const HL_MAX_PAGES = 4;    // ~4-5 days back before we give up
+
+async function fetchIranHighlights(matches){
+  const map = new Map();
+  if (!IRAN_PROXY || !matches.length) return map;
+
+  const claim = (posts) => {
+    matches.forEach(m => {
+      if (map.has(m.id)) return;
+      const sameScore = posts.filter(p => p.hs === m.home.score && p.as === m.away.score);
+      const best = sameScore.find(p => faNameMatch(p.home, m.faHome) && faNameMatch(p.away, m.faAway))
+                || sameScore.find(p => faNameMatch(p.home, m.faHome) || faNameMatch(p.away, m.faAway));
+      if (!best) return;
+      const media = best.raw.primary_media || {};
+      map.set(m.id, {
+        url:   String(best.raw.link || "").replace(/^http:/, "https:"),
+        video: media.upload_video_link || null,
+        thumb: media.thumbnail || media.cover_image || null,
+        secs:  media.duration || null
+      });
+    });
+  };
+
+  // Newest posts first, so one page covers today. Only page deeper while
+  // something is still unmatched - browsing back a few days costs more calls,
+  // today costs exactly one.
+  for (let page = 0; page < HL_MAX_PAGES; page++) {
+    const r = await net(
+      `${IRAN_PROXY}/api/cms/v2/posts/?post_type=V&limit=${HL_PAGE}&offset=${page * HL_PAGE}`,
+      { note: "f360 highlight posts p" + page });
+    if (!r.ok) break;                                      // proxy or football360 down
+    const posts = (r.data && r.data.data) || [];
+    claim(posts.map(p => {
+      const parsed = parseHighlightTitle(p.title);
+      return parsed ? Object.assign(parsed, { raw: p }) : null;
+    }).filter(Boolean));
+    if (map.size === matches.length) break;                // everything found
+    if (!posts.length) break;                              // ran out of posts
+  }
+  return map;
+}
+
+/* ---------------- AFC live streams ---------------- */
+
+let AFC = new Map();      // match id -> youtube video id
+let AFC_OK = false;       // did the feed actually load this time round
+
+// "Al-Sadd SC" and "Al Sadd", "Traktor Sazi" and "Tractor FC" have to meet
+// somewhere, so both sides are reduced to bare words and the filler dropped.
+const AFC_SKIP = new Set(["fc","sc","club","al","united","city","sazi","pfc","afc","the"]);
+function afcWords(name){
+  return String(name || "")
+    .toLowerCase()
+    .replace(/k/g, "c")                       // Traktor / Tractor
+    .replace(/[^a-z]+/g, " ")
+    .split(" ")
+    .filter(w => w.length > 2 && !AFC_SKIP.has(w));
+}
+
+async function fetchAfcStreams(matches){
+  AFC = new Map(); AFC_OK = false;
+  if (!IRAN_PROXY || !matches.length) return;
+  const r = await cached("yt|afc", TTL_LIVE,
+    () => net(`${IRAN_PROXY}/yt/afc`, { note: "AFC Hub feed", as: "xml" }));
+
+  if (!r.ok) return;                          // route not deployed, or YouTube down
+
+  const feed = Array.prototype.map.call(r.data.getElementsByTagName("entry"), e => {
+    const id = e.getElementsByTagName("yt:videoId")[0] || e.getElementsByTagName("videoId")[0];
+    const t  = e.getElementsByTagName("title")[0];
+    return { id: id && id.textContent, title: (t && t.textContent) || "" };
+  }).filter(x => x.id);
+  if (!feed.length) return;
+  AFC_OK = true;
+
+  matches.forEach(m => {
+    const h = afcWords(m.home.name), a = afcWords(m.away.name);
+    const hit = feed.find(f => {
+      if (!/live/i.test(f.title)) return false;
+      const w = afcWords(f.title);
+      return h.some(x => w.includes(x)) && a.some(x => w.includes(x));
+    });
+    if (hit) AFC.set(m.id, hit.id);
+  });
+}
+
+// Shown only while a match is actually in play. AFC blocks its videos from
+// playing on other sites ("this video contains content from Asian Football
+// Confederation, who has blocked it"), so this can only ever be a link out.
+function afcStream(m){
+  if (m.state !== "in") return null;
+  const id = AFC.get(m.id);
+  if (id) return { url: "https://www.youtube.com/watch?v=" + id, exact: true };
+  return { url: AFC_LIVE_URL, exact: false };
+}
+
+function liveNode(info){
+  const wrap = el("div","hlrow");
+  const a = el("a","hl livebtn");
+  a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+  a.appendChild(el("span","play","\u25b6"));
+  a.appendChild(el("span", null, info.exact ? "Watch live on YouTube" : "Live on The AFC Hub"));
+  wrap.appendChild(a);
+  return wrap;
+}
+
+// For the European leagues there is no reliable feed, so send the user to a search.
+function youtubeSearch(m){
+  // Team names plus "highlights" only. Adding the competition pulled in
+  // fan-filmed uploads that keyword-stuff their titles.
+  const q = `${m.home.name} vs ${m.away.name} highlights`;
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+}
+
+function runtime(secs){
+  if (!secs) return "";
+  return " \u00b7 " + Math.floor(secs/60) + ":" + String(Math.round(secs%60)).padStart(2,"0");
+}
+
+function highlightInfo(m){
+  if (m.state !== "post") return null;
+  const hit = HL.get(m.id);
+  if (hit) return {
+    kind: hit.video ? "video" : "link",
+    url: hit.url, video: hit.video, thumb: hit.thumb,
+    label: "Highlights" + runtime(hit.secs)
+  };
+  if (m.src === "espn") return { kind: "search", url: youtubeSearch(m), label: "Find highlights" };
+  return null;
+}
+
+/* Plays the clip in place. Nothing is fetched until the button is pressed -
+   the poster is a thumbnail, the video itself is only requested on click.
+   If the clip fails to load (their CDN moves it, or Iran's network is down)
+   the row falls back to the football360 page instead of just breaking. */
+function highlightNode(info){
+  const wrap = el("div","hlrow");
+
+  if (info.kind !== "video") {
+    const a = el("a","hl" + (info.kind === "search" ? " weak" : ""));
+    a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+    a.appendChild(el("span","play","\u25b6"));
+    a.appendChild(el("span", null, info.label));
+    wrap.appendChild(a);
+    return wrap;
+  }
+
+  const btn = el("button","hl");
+  btn.appendChild(el("span","play","\u25b6"));
+  btn.appendChild(el("span", null, info.label));
+
+  const src = el("a","hlsrc","football360.ir");
+  src.href = info.url; src.target = "_blank"; src.rel = "noopener";
+
+  wrap.appendChild(btn);
+  wrap.appendChild(src);
+
+  btn.addEventListener("click", () => {
+    const box = el("div","player");
+    const v = document.createElement("video");
+    v.controls = true; v.autoplay = true; v.playsInline = true; v.preload = "none";
+    if (info.thumb) v.poster = info.thumb;
+    v.src = info.video;
+    v.onerror = () => {
+      box.innerHTML = "";
+      const a = el("a","hl");
+      a.href = info.url; a.target = "_blank"; a.rel = "noopener";
+      a.appendChild(el("span","play","\u25b6"));
+      a.appendChild(el("span", null, "Video unavailable \u2014 open on football360"));
+      box.appendChild(a);
+    };
+    box.appendChild(v);
+    const foot = el("div","hlmeta");
+    const link = el("a","hlsrc","football360.ir");
+    link.href = info.url; link.target = "_blank"; link.rel = "noopener";
+    foot.appendChild(link);
+    box.appendChild(foot);
+    wrap.replaceWith(box);
+  });
+
+  return wrap;
+}
+
+/* ---------------- rendering ---------------- */
+
+function statusCell(m){
+  const w = el("div","status cm");
+  if (m.state === "in") {
+    w.classList.add("live");
+    w.appendChild(el("span","dot"));
+    w.appendChild(document.createTextNode(m.halftime ? "HT" : (m.statusShort || "LIVE")));
+  } else if (m.state === "post") {
+    w.textContent = m.pen ? "PEN" : (m.statusShort || "FT");
+  } else if (m.postponed) {
+    w.textContent = "PP";
+  } else {
+    w.textContent = isNaN(m.kickoff) ? "—" : m.kickoff.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  }
+  return w;
+}
+
+function nameCell(t, side, state){
+  const c = el("div", "tname " + side + (state ? " " + state : ""));
+  if (t.logo) { const i = new Image(); i.src = t.logo; i.alt = ""; i.loading = "lazy"; c.appendChild(i); }
+  c.appendChild(el("span", null, t.name));
+  return c;
+}
+
+function scorerCell(lines, side){
+  const c = el("div", "scorers " + side);
+  lines.forEach(l => c.appendChild(el("div", null, l)));
+  return c;
+}
+
+function matchRow(m, cfg){
+  const played = m.state === "in" || m.state === "post";
+  const hs = m.home.score, as = m.away.score;
+
+  let cmp = null;
+  if (m.pen && m.pen.home !== m.pen.away) cmp = m.pen.home - m.pen.away;
+  else if (m.home.winner === true || m.away.winner === true) cmp = m.home.winner ? 1 : -1;
+  else if (hs != null && as != null) cmp = hs - as;
+  const decided = played && cmp != null && cmp !== 0;
+  const hState = decided ? (cmp > 0 ? "won" : "lost") : "";
+  const aState = decided ? (cmp < 0 ? "won" : "lost") : "";
+
+  const row = el("div","match");
+  const b = el("div","board");
+
+  b.appendChild(nameCell(m.home, "ch", hState));
+  b.appendChild(el("div","dash cm","–"));
+  b.appendChild(nameCell(m.away, "ca", aState));
+
+  b.appendChild(el("div","gnum ch" + (played && hs != null ? (hState === "won" ? " won" : "") : " none"), played && hs != null ? String(hs) : "–"));
+  b.appendChild(statusCell(m));
+  b.appendChild(el("div","gnum ca" + (played && as != null ? (aState === "won" ? " won" : "") : " none"), played && as != null ? String(as) : "–"));
+
+  const hl = highlightInfo(m);
+
+  if (m.goalsHome.length || m.goalsAway.length || m.pen) {
+    b.appendChild(scorerCell(m.goalsHome, "ch"));
+    const mid = el("div","cm");
+    if (m.pen) mid.appendChild(el("div","penline", m.pen.home + "–" + m.pen.away));
+    b.appendChild(mid);
+    b.appendChild(scorerCell(m.goalsAway, "ca"));
+  }
+
+  row.appendChild(b);
+
+  if (hl) row.appendChild(highlightNode(hl));
+
+  if (cfg && cfg.stream) {
+    const lv = afcStream(m);
+    if (lv) row.appendChild(liveNode(lv));
+  }
+
+  return row;
+}
+
+function leagueCard(L){
+  const cfg = L.cfg;
+  const card = el("div","league");
+  const head = el("div","lhead");
+  if (L.logo) { const i = new Image(); i.src = L.logo; i.alt = ""; i.loading = "lazy"; head.appendChild(i); }
+  const names = el("div");
+  names.appendChild(el("div","lname", cfg.name));
+  names.appendChild(el("div","lcountry", cfg.country));
+  head.appendChild(names);
+  const link = el("a","tablelink","League table");
+  link.href = "#standings/" + encodeURIComponent(cfg.key);
+  head.appendChild(link);
+  card.appendChild(head);
+
+  if (L.error) {
+    // Naming the reason is the point: an empty card used to say nothing at all.
+    const e = el("div","empty","Source unavailable - " + L.error + ". ");
+    const a = el("a", null, "details"); a.href = "#debug";
+    e.appendChild(a);
+    card.appendChild(e);
+  } else if (!L.matches.length) {
+    card.appendChild(el("div","empty", cfg.emptyText || "No matches on this date."));
+  } else {
+    L.matches.slice().sort((a,b) => a.kickoff - b.kickoff)
+      .forEach(m => card.appendChild(tagRow(matchRow(m, cfg), cfg, m)));
+  }
+  return card;
+}
+
+const STATE = { target: null, leagues: [] };
+
+async function loadResults(){
+  $("error").classList.add("hide");
+  $("dateLabel").textContent = day.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+  document.title = "Football - " + $("dateLabel").textContent;
+  $("content").innerHTML = "";
+  $("content").appendChild(el("div","empty","Loading\u2026"));
+
+  const target = ymd(day);
+  const loaded = await Promise.all(LEAGUES.map(cfg => leagueDay(cfg, day)));
+  if (ymd(day) !== target) return;          // the date was changed while we waited
+
+  STATE.target = target;
+  STATE.leagues = LEAGUES.map((cfg, i) => ({
+    cfg,
+    logo: loaded[i].logo,
+    source: loaded[i].source,
+    error: loaded[i].matches === null ? (loaded[i].error || "unreachable") : null,
+    matches: onDay(cfg, loaded[i].matches, target)
+  }));
+
+  await Promise.all([loadHighlights(), loadStreams()]);
+  if (ymd(day) !== target) return;
+  renderResults();
+}
+
+// Iranian highlights: only asked for when something has actually finished.
+async function loadHighlights(){
+  HL = new Map();
+  const iran = STATE.leagues.find(L => L.cfg.src === "tsdb");
+  if (!iran || iran.source !== "football360") return;
+  const done = iran.matches.filter(m => m.state === "post" && m.home.score != null);
+  if (done.length) HL = await fetchIranHighlights(done);
+}
+
+// AFC streams: only asked for while an Iranian match is in play.
+async function loadStreams(){
+  const afc = STATE.leagues.find(L => L.cfg.stream);
+  await fetchAfcStreams(afc ? afc.matches.filter(m => m.state === "in") : []);
+}
+
+function renderResults(){
+  const box = $("content");
+  box.innerHTML = "";
+  STATE.leagues.forEach(L => box.appendChild(leagueCard(L)));
+
+  const dead = STATE.leagues.filter(L => L.error).length;
+  if (dead === STATE.leagues.length) {
+    $("error").innerHTML = "<b>No data source could be reached.</b><br>" +
+      "Check your connection, or open <a href='#debug'>#debug</a> to see exactly what failed.";
+    $("error").classList.remove("hide");
+  } else {
+    $("error").classList.add("hide");
+  }
+}
+
+/* ---------------- live tick ----------------
+   Only the rows of matches that are in play are refetched and swapped out.
+   Everything else — scroll position, standings, an open highlight — is left
+   alone, so this never yanks the page around while you are reading it. */
+
+const LIVE_MS = 60000;
+let liveBusy = false;
+
+// Everything about a match that the row actually shows. The tick compares it
+// and leaves a row alone when nothing on screen would change, so rows that are
+// not moving are never rebuilt.
+function sigOf(m){
+  return [m.state, m.statusShort, m.halftime ? "HT" : "", m.home.score, m.away.score,
+          m.goalsHome.join(","), m.goalsAway.join(","),
+          m.pen ? m.pen.home + "-" + m.pen.away : "",
+          AFC.get(m.id) || ""].join("|");
+}
+
+function tagRow(row, cfg, m){
+  row.dataset.lg  = cfg.key;
+  row.dataset.mid = cfg.key + "|" + m.id;
+  row.dataset.sig = sigOf(m);
+  if (m.state === "in") row.dataset.live = "1"; else delete row.dataset.live;
+  return row;
+}
+
+async function tickLive(){
+  if (liveBusy || document.hidden) return;
+  if (routeOf(location.hash).view !== "results") return;
+  if (STATE.target !== ymd(new Date())) return;      // only the live day polls
+
+  const hot = STATE.leagues.filter(L => !L.error && L.matches.some(m => m.state === "in"));
+  if (!hot.length) return;
+
+  liveBusy = true;
+  try {
+    for (const L of hot) {
+      const r = await leagueDay(L.cfg, day, { fresh: true });
+      if (r.matches === null) continue;              // leave the rows as they are
+      if (STATE.target !== ymd(day)) return;         // the date moved under us
+      L.matches = onDay(L.cfg, r.matches, STATE.target);
+      if (L.cfg.stream) await fetchAfcStreams(L.matches.filter(m => m.state === "in"));
+
+      const index = new Map();
+      document.querySelectorAll(".match[data-mid]").forEach(row => index.set(row.dataset.mid, row));
+      L.matches.forEach(m => {
+        const old = index.get(L.cfg.key + "|" + m.id);
+        if (!old || !old.parentNode) return;
+        if (old.dataset.sig === sigOf(m)) return;      // nothing on screen changed
+        const fresh = tagRow(matchRow(m, L.cfg), L.cfg, m);
+        // A row with a player open only gets its scoreline patched, so a stream
+        // or a highlight being watched is never cut off.
+        if (old.querySelector(".player")) old.querySelector(".board").replaceWith(fresh.querySelector(".board"));
+        else old.replaceWith(fresh);
+      });
+    }
+  } finally { liveBusy = false; }
+}
+
+/* ---------------- recent form ---------------- */
+
+// Neither source publishes a usable last-5, so it is derived from finished matches.
+function foldForm(events){
+  const m = new Map();
+  events.sort((x,y) => x.ts - y.ts).forEach(e => {
+    const put = (id, res) => { if (!m.has(id)) m.set(id, []); m.get(id).push({ res, ts: e.ts }); };
+    put(e.h, e.res);
+    put(e.a, e.res === "W" ? "L" : e.res === "L" ? "W" : "D");
+  });
+  return m;
+}
+
+/* Last 5 used to come from a 120-day scoreboard range. That endpoint returned
+   the previous season's results until it was filtered, then went stale, then
+   started answering 400. ESPN publishes each team's own season schedule at a
+   plain URL with no date arithmetic at all, so that is what is read instead:
+   one call per team, cached, all in parallel (20 teams measured at ~1s). It
+   also cannot bleed across seasons, because ESPN scopes it for us. */
+async function formFromSchedules(cfg, ids){
+  const map = new Map();
+  const res = await Promise.all(ids.map(id =>
+    cached("sched|" + cfg.key + "|" + id, TTL_TABLE,
+      () => net(`${ESPN}/${cfg.key}/teams/${id}/schedule`, { note: "form " + cfg.key + "/" + id }))));
+
+  res.forEach((r, i) => {
+    if (!r.ok) return;
+    const id = String(ids[i]);
+    // In this endpoint a score is an object, not the string the scoreboard uses.
+    const num = t => {
+      const v = t && t.score;
+      return Number(v && typeof v === "object" ? v.value : v);
+    };
+    const rows = (((r.data && r.data.events) || [])).map(ev => {
+      const c = ev.competitions && ev.competitions[0];
+      if (!c || !c.status || !c.status.type || c.status.type.state !== "post") return null;
+      const me   = (c.competitors || []).find(t => String(t.team && t.team.id) === id);
+      const them = (c.competitors || []).find(t => String(t.team && t.team.id) !== id);
+      if (!me || !them) return null;
+      const a = num(me), b = num(them);
+      if (isNaN(a) || isNaN(b)) return null;
+      return { ts: new Date(ev.date).getTime(), res: a > b ? "W" : a < b ? "L" : "D" };
+    }).filter(Boolean).sort((x, y) => x.ts - y.ts);
+    if (rows.length) map.set(id, rows);
+  });
+  return map;
+}
+
+function formFromF360(list){
+  const events = (list || []).filter(m => m.is_finished && m.home_score != null && m.away_score != null)
+    .map(m => {
+      const hs = Number(m.home_score), as = Number(m.away_score);
+      return { ts: Number(m.holds_at) * 1000, h: m.home_team.id, a: m.away_team.id,
+               res: hs > as ? "W" : hs < as ? "L" : "D" };
+    });
+  return foldForm(events);
+}
+
+const FORM_ICON = {
+  W: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.7 6.3l2.2 2.2 4.5-4.9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  L: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
+  D: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.3 6h5.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+const FORM_WORD = { W: "Win", L: "Loss", D: "Draw" };
+
+// Always five slots: played matches fill from the left, the rest stay empty.
+function formCell(list){
+  const td = el("td","form");
+  const box = el("span","fdots");
+  const last5 = (list || []).slice(-5);
+  for (let i = 0; i < 5; i++) {
+    const item = last5[i];
+    if (!item) { box.appendChild(el("span","fdot empty")); continue; }
+    const dot = el("span", "fdot " + item.res + (i === last5.length - 1 ? " latest" : ""));
+    dot.innerHTML = FORM_ICON[item.res] || "";
+    dot.title = FORM_WORD[item.res] +
+      (item.ts ? " · " + new Date(item.ts).toLocaleDateString([], { month:"short", day:"numeric" }) : "");
+    box.appendChild(dot);
+  }
+  td.appendChild(box);
+  return td;
+}
+
+/* ---------------- standings ---------------- */
+
+function iranSeason(d){
+  const y = d.getFullYear();
+  return d.getMonth() + 1 >= 7 ? y + "-" + (y+1) : (y-1) + "-" + y;
+}
+
+function tableCard(title, subtitle, logo, rows, note, drop){
+  const card = el("div","league");
+  const head = el("div","lhead");
+  if (logo) { const i = new Image(); i.src = logo; i.alt = ""; head.appendChild(i); }
+  const names = el("div");
+  names.appendChild(el("div","lname", title));
+  names.appendChild(el("div","lcountry", subtitle));
+  head.appendChild(names);
+  card.appendChild(head);
+
+  const wrap = el("div","tblwrap");
+  const t = el("table");
+  t.innerHTML = "<thead><tr><th class='pos'>#</th><th class='tm'>Team</th><th>P</th>" +
+    "<th class='hide-sm'>W</th><th class='hide-sm'>D</th><th class='hide-sm'>L</th>" +
+    "<th class='hide-sm'>GF</th><th class='hide-sm'>GA</th><th>GD</th><th>Pts</th><th>Last 5</th></tr></thead>";
+  const tb = el("tbody");
+  const dropFrom = (drop > 0 && rows.length > drop + 1) ? rows.length - drop : -1;
+  rows.forEach((r, i) => {
+    const tr = el("tr");
+    if (dropFrom >= 0 && i >= dropFrom) tr.className = "drop";
+    tr.appendChild(el("td","pos", String(r.rank)));
+    const tm = el("td","tm");
+    if (r.logo) { const i = new Image(); i.src = r.logo; i.alt = ""; i.loading = "lazy"; tm.appendChild(i); }
+    tm.appendChild(el("span", null, r.team));
+    tr.appendChild(tm);
+    [r.p, r.w, r.d, r.l, r.gf, r.ga].forEach((v, idx) => {
+      tr.appendChild(el("td", idx === 0 ? null : "hide-sm", String(v)));
+    });
+    tr.appendChild(el("td", null, (r.gd > 0 ? "+" : "") + r.gd));
+    const pts = el("td", null, String(r.pts)); pts.style.fontWeight = "700";
+    tr.appendChild(pts);
+
+    tr.appendChild(formCell(r.form));
+
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  wrap.appendChild(t);
+  card.appendChild(wrap);
+  if (note) card.appendChild(el("div","note", note));
+  return card;
+}
+
+async function loadStandings(viewLeague){
+  const cfg = LEAGUES.find(l => l.key === viewLeague) || { key: viewLeague, name: "League", country: "", src: "espn" };
+  $("pageTitle").textContent = cfg.name + " \u2014 table";
+  $("pageSub").textContent = cfg.country;
+  document.title = cfg.name + " table";
+  $("topBar").innerHTML = "";
+  const back = el("a","btn","\u2190 Back to the scores");
+  back.href = "#";
+  $("topBar").appendChild(back);
+  $("content").innerHTML = "";
+  $("content").appendChild(el("div","empty","Loading\u2026"));
+
+  const fail = msg => {
+    $("content").innerHTML = "";
+    $("error").innerHTML = "<b>Could not load the table.</b><br>" + msg +
+      " <a href='#debug'>details</a>";
+    $("error").classList.remove("hide");
+  };
+
+  if (cfg.src === "espn") {
+    const st = await cached("table|" + cfg.key, TTL_TABLE,
+      () => net(`${ESPN_STANDINGS}/${cfg.key}/standings`, { note: "table " + cfg.key }));
+    if (!st.ok) return fail(st.error);
+
+    const groups = ((st.data && st.data.children) || []).slice();
+    // West before East on the AFC table - the Iranian clubs are in the West.
+    if (cfg.key === "afc.champions") {
+      const side = n => /west/i.test(n || "") ? 0 : /east/i.test(n || "") ? 1 : 2;
+      groups.sort((a, b) => side(a.name) - side(b.name));
+    }
+    if (!groups.length) {
+      $("content").innerHTML = "";
+      $("content").appendChild(el("div","empty","No table published for this competition right now."));
+      return;
+    }
+
+    const ids = [];
+    groups.forEach(g => (g.standings.entries || []).forEach(e => { if (e.team && e.team.id) ids.push(e.team.id); }));
+    const formMap = await formFromSchedules(cfg, ids);
+
+    $("content").innerHTML = "";
+    $("error").classList.add("hide");
+    groups.forEach(g => {
+      const rows = (g.standings.entries || []).map(e => {
+        const s2 = {}; (e.stats || []).forEach(x => s2[x.name] = x.value != null ? x.value : x.displayValue);
+        return { rank: s2.rank, team: e.team.displayName,
+                 logo: e.team.logos && e.team.logos[0] && e.team.logos[0].href,
+                 form: formMap.get(String(e.team.id)) || [],
+                 p: s2.gamesPlayed ?? 0, w: s2.wins ?? 0, d: s2.ties ?? 0, l: s2.losses ?? 0,
+                 gf: s2.pointsFor ?? 0, ga: s2.pointsAgainst ?? 0,
+                 gd: s2.pointDifferential ?? 0, pts: s2.points ?? 0 };
+      }).sort((a,b) => a.rank - b.rank);
+      $("content").appendChild(tableCard(g.name || cfg.name, cfg.country, null, rows, null, cfg.drop || 0));
+    });
+    return;
+  }
+
+  // Iran: football360 first, TheSportsDB when the proxy or the site is down.
+  if (IRAN_PROXY) {
+    const trend = await f360Trend();
+    if (trend) {
+      const [st, fx] = await Promise.all([
+        cached("f360|standings", TTL_TABLE,
+          () => net(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/standings/`, { note: "f360 standings" })),
+        cached("f360|fixtures", TTL_LIVE, fetchIranFixturesRaw)
+      ]);
+      const dig = (o, depth) => {
+        if (Array.isArray(o) && o.length && o[0] && o[0].team && o[0].rank !== undefined) return o;
+        if (o && typeof o === "object" && depth < 5) {
+          for (const k of Object.keys(o)) { const r = dig(o[k], depth+1); if (r) return r; }
+        }
+        return null;
+      };
+      const raw = st.ok ? dig(st.data, 0) : null;
+      if (raw && raw.length) {
+        const formMap = fx.ok ? formFromF360(fx.data) : new Map();
+        const rows = raw.map(r => ({
+          rank: Number(r.rank),
+          team: teamName(r.team),
+          logo: (r.team && r.team.logo) || null,
+          form: formMap.get(r.team && r.team.id) || [],
+          p: Number(r.played_matches||0), w: Number(r.won_matches||0),
+          d: Number(r.played_matches||0) - Number(r.won_matches||0) - Number(r.lost_matches||0),
+          l: Number(r.lost_matches||0),
+          gf: Number(r.scored_goals||0), ga: Number(r.conceded_goals||0),
+          gd: Number(r.goal_difference||0), pts: Number(r.score||0)
+        })).sort((a,b) => a.rank - b.rank);
+        $("content").innerHTML = "";
+        $("error").classList.add("hide");
+        $("content").appendChild(tableCard(cfg.name, (st.data && st.data.english_name) || cfg.country,
+          (st.data && st.data.logo) || null, rows, "Source: football360.ir", cfg.drop || 0));
+        return;
+      }
+    }
+  }
+
+  const season = iranSeason(day);
+  const t = await net(`${TSDB}/lookuptable.php?l=${cfg.key}&s=${season}`, { note: "tsdb table " + season });
+  if (!t.ok) return fail(t.error);
+  const rows = ((t.data && t.data.table) || []).map(r => ({
+    rank: Number(r.intRank), team: r.strTeam, logo: r.strBadge || null,
+    p: Number(r.intPlayed||0), w: Number(r.intWin||0), d: Number(r.intDraw||0), l: Number(r.intLoss||0),
+    gf: Number(r.intGoalsFor||0), ga: Number(r.intGoalsAgainst||0),
+    gd: Number(r.intGoalDifference||0), pts: Number(r.intPoints||0)
+  }));
+  $("content").innerHTML = "";
+  if (!rows.length) { $("content").appendChild(el("div","empty","No table available for season " + season + ".")); return; }
+  $("error").classList.add("hide");
+  $("content").appendChild(tableCard(cfg.name, "Season " + season, null, rows,
+    "The free data source returns only the top of this table, so no relegation zone is marked.", 0));
+}
+
+/* ---------------- wiring ---------------- */
+
+const TOPBAR_HTML = $("topBar").innerHTML;
+const TITLE = $("pageTitle").textContent;
+const SUBTITLE = $("pageSub").textContent;
+
+function showResults(){
+  $("pageTitle").textContent = TITLE;
+  $("pageSub").textContent = SUBTITLE;
+  $("topBar").innerHTML = TOPBAR_HTML;
+  $("prevBtn").addEventListener("click", () => { day = shift(day,-1); loadResults(); });
+  $("nextBtn").addEventListener("click", () => { day = shift(day, 1); loadResults(); });
+  $("todayBtn").addEventListener("click", () => { day = new Date(); loadResults(); });
+  $("reloadBtn").addEventListener("click", loadResults);
+  loadResults();
+}
+
+/* Every request this page made, newest first. The point is that a broken
+   source can be identified from the phone, without anyone reading the code. */
+function showDebug(){
+  $("pageTitle").textContent = "Diagnostics";
+  $("pageSub").textContent = "every request this page has made, newest first";
+  document.title = "Football - diagnostics";
+  $("error").classList.add("hide");
+  $("topBar").innerHTML = "";
+  const back = el("a","btn","\u2190 Back to the scores"); back.href = "#";
+  $("topBar").appendChild(back);
+
+  const card = el("div","league");
+  const head = el("div","lhead");
+  const names = el("div");
+  const bad = NET_LOG.filter(r => !r.ok).length;
+  names.appendChild(el("div","lname", NET_LOG.length + " request" + (NET_LOG.length === 1 ? "" : "s")));
+  names.appendChild(el("div","lcountry", bad ? bad + " failed" : "all succeeded"));
+  head.appendChild(names);
+  card.appendChild(head);
+
+  const wrap = el("div","tblwrap");
+  const t = el("table");
+  t.innerHTML = "<thead><tr><th class='tm'>What</th><th>Result</th><th>ms</th>" +
+                "<th class='hide-sm'>Tries</th><th class='tm hide-sm'>URL</th></tr></thead>";
+  const tb = el("tbody");
+  NET_LOG.forEach(r => {
+    const tr = el("tr");
+    if (!r.ok) tr.className = "drop";
+    tr.appendChild(el("td","tm", r.note || "-"));
+    tr.appendChild(el("td", null, r.ok ? "OK " + r.status : (r.error || "failed")));
+    tr.appendChild(el("td", null, String(r.ms)));
+    tr.appendChild(el("td","hide-sm", String(r.tries)));
+    tr.appendChild(el("td","tm hide-sm", r.url.replace(/^https?:\/\//, "")));
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb); wrap.appendChild(t); card.appendChild(wrap);
+  if (!NET_LOG.length) card.appendChild(el("div","empty","Nothing has been requested yet - open the scores first."));
+  $("content").innerHTML = "";
+  $("content").appendChild(card);
+}
+
+function showStandings(key){
+  $("error").classList.add("hide");
+  $("content").innerHTML = "";
+  loadStandings(key);
+}
+
+function route(){
+  const r = routeOf(location.hash);
+  window.scrollTo(0, 0);
+  if (r.view === "debug") showDebug();
+  else if (r.view === "standings") showStandings(r.league);
+  else showResults();
+}
+
+window.addEventListener("hashchange", route);
+setInterval(tickLive, LIVE_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tickLive(); });
+
+// Old bookmarks used ?view=standings&league=... — send those to the hash route
+if (!location.hash && params.get("view") === "standings" && params.get("league")) {
+  location.replace("#standings/" + encodeURIComponent(params.get("league")));
+}
+route();
+
+</script>
+</body>
+</html>
