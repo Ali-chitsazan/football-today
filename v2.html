@@ -81,6 +81,7 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .lcountry{color:var(--faint);font-size:12px}
 .tablelink{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:7px}
 .tablelink:hover{background:var(--chip)}
+.tablelink.quiet{color:var(--muted)}
 
 .match{padding:12px 14px;border-top:1px solid var(--line)}
 .match:first-of-type{border-top:none}
@@ -176,6 +177,7 @@ tr.drop td.tm{font-weight:600}
     <button id="nextBtn" title="Next day">›</button>
     <button id="todayBtn">Today</button>
     <button id="reloadBtn">Refresh</button>
+    <a class="btn" id="weekBtn" href="#next">Next week</a>
   </div>
 </header>
 
@@ -241,6 +243,8 @@ let day = params.get("date") ? parseYmd(params.get("date")) : new Date();
 // Hash routing (not pushState) because pushState is blocked on file:// URLs.
 function routeOf(hash){
   if (/^#debug\b/.test(hash || "")) return { view: "debug" };
+  const n = /^#next(?:\/(.+))?$/.exec(hash || "");
+  if (n) return { view: "next", league: n[1] ? decodeURIComponent(n[1]) : null };
   const m = /^#standings\/(.+)$/.exec(hash || "");
   return m ? { view: "standings", league: decodeURIComponent(m[1]) } : { view: "results" };
 }
@@ -844,8 +848,15 @@ function leagueCard(L){
   names.appendChild(el("div","lname", cfg.name));
   names.appendChild(el("div","lcountry", cfg.country));
   head.appendChild(names);
+  // Grey against the green table link: the two stop competing, and green keeps
+  // meaning one thing in the app.
+  const nextLink = el("a","tablelink quiet","Next matches");
+  nextLink.href = "#next/" + encodeURIComponent(cfg.key);
+  nextLink.style.marginLeft = "auto";
+  head.appendChild(nextLink);
   const link = el("a","tablelink","League table");
   link.href = "#standings/" + encodeURIComponent(cfg.key);
+  link.style.marginLeft = "6px";
   head.appendChild(link);
   card.appendChild(head);
 
@@ -1225,6 +1236,163 @@ async function loadStandings(viewLeague){
     "The free data source returns only the top of this table, so no relegation zone is marked.", 0));
 }
 
+/* ---------------- next week ----------------
+   Next week means the calendar week after the one we are in: Monday to Sunday.
+   It is not a rolling seven days, so on Wednesday it still shows next Monday
+   onwards, and the header prints the exact dates so there is no guessing.
+
+   ESPN's date-range endpoint has answered 400 since 16 Sep, so fixtures are
+   fetched a day at a time. The scoreboard reply carries a calendar of every
+   date that league plays, which trims five of the leagues to the three or
+   four days they actually use. Cups publish only phase-level calendars, so
+   those are asked day by day. */
+
+function weekRange(from){
+  const base = new Date(from);
+  base.setHours(0,0,0,0);
+  const dow = (base.getDay() + 6) % 7;            // 0 = Monday
+  const start = shift(base, -dow + 7);            // Monday of the week after this one
+  return { start, end: shift(start, 6) };
+}
+
+// Day-level only. Cups return a phase calendar, which is no use here.
+function calendarDays(json){
+  const lg = json && json.leagues && json.leagues[0];
+  const cal = lg && lg.calendar;
+  if (!Array.isArray(cal) || !cal.length || typeof cal[0] !== "string") return null;
+  return new Set(cal.map(c => String(c).slice(0, 10)));
+}
+
+async function espnWeek(cfg, start, end){
+  // One day either side: a kickoff can land on a different calendar day in
+  // local time than the one ESPN files it under.
+  const span = [];
+  for (let d = shift(start,-1); d <= shift(end,1); d = shift(d,1)) span.push(new Date(d));
+
+  // The first call also tells us which of those days are worth asking for.
+  const probe = await cached("sb|" + cfg.key + "|" + compact(span[0]), TTL_PAST,
+    () => net(`${ESPN}/${cfg.key}/scoreboard?dates=${compact(span[0])}`, { note: cfg.key + " " + compact(span[0]) }));
+  if (!probe.ok) return { matches: null, error: probe.error };
+
+  const cal = calendarDays(probe.data);
+  const wanted = span.slice(1).filter(d => !cal || cal.has(ymd(d)));
+  const rest = await Promise.all(wanted.map(d =>
+    cached("sb|" + cfg.key + "|" + compact(d), TTL_PAST,
+      () => net(`${ESPN}/${cfg.key}/scoreboard?dates=${compact(d)}`, { note: cfg.key + " " + compact(d) }))));
+
+  const byId = new Map();
+  [probe, ...rest].forEach(r => { if (r.ok) espnMatches(r.data).forEach(m => byId.set(m.id, m)); });
+  const logos = probe.data.leagues && probe.data.leagues[0] && probe.data.leagues[0].logos;
+  return { matches: [...byId.values()], logo: logos && logos[0] && logos[0].href,
+           skipped: cal ? (span.length - 1 - wanted.length) : 0 };
+}
+
+async function iranWeek(cfg){
+  // football360 publishes the whole season in one call, so the week is free.
+  if (IRAN_PROXY) {
+    const r = await cached("f360|fixtures", TTL_PAST, fetchIranFixturesRaw);
+    if (r.ok) return { matches: f360Matches(r.data), logo: null };
+  }
+  return { matches: null, error: "football360 unavailable, and TheSportsDB has no fixture list" };
+}
+
+function inWeek(m, start, end){
+  if (isNaN(m.kickoff)) return false;
+  const k = ymd(m.kickoff);
+  return k >= ymd(start) && k <= ymd(end);
+}
+
+async function showNext(onlyLeague){
+  const { start, end } = weekRange(new Date());
+  const fmt = d => d.toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" });
+  const cfgs = LEAGUES.filter(c => !onlyLeague || c.key === onlyLeague);
+
+  $("pageTitle").textContent = "Next week";
+  $("pageSub").textContent = fmt(start) + " – " + fmt(end) +
+    (onlyLeague && cfgs[0] ? " · " + cfgs[0].name : "");
+  document.title = "Football - next week";
+  $("error").classList.add("hide");
+  $("topBar").innerHTML = "";
+  const back = el("a","btn","← Back to the scores"); back.href = "#";
+  $("topBar").appendChild(back);
+  if (onlyLeague) {
+    const all = el("a","btn","All leagues"); all.href = "#next"; all.style.marginLeft = "6px";
+    $("topBar").appendChild(all);
+  }
+  $("content").innerHTML = "";
+  $("content").appendChild(el("div","empty","Loading…"));
+
+  const loaded = await Promise.all(cfgs.map(cfg =>
+    cfg.src === "espn" ? espnWeek(cfg, start, end) : iranWeek(cfg)));
+  if (routeOf(location.hash).view !== "next") return;   // navigated away while loading
+
+  // day -> [{cfg, matches}]
+  const days = new Map();
+  const broken = [];
+  cfgs.forEach((cfg, i) => {
+    const r = loaded[i];
+    if (!r.matches) { broken.push({ cfg, error: r.error || "unreachable" }); return; }
+    r.matches
+      .filter(m => inWeek(m, start, end))
+      .filter(m => !cfg.only || cfg.only.test(m.home.name) || cfg.only.test(m.away.name))
+      .forEach(m => {
+        const k = ymd(m.kickoff);
+        if (!days.has(k)) days.set(k, new Map());
+        const perLeague = days.get(k);
+        if (!perLeague.has(cfg.key)) perLeague.set(cfg.key, { cfg, logo: r.logo, matches: [] });
+        perLeague.get(cfg.key).matches.push(m);
+      });
+  });
+
+  $("content").innerHTML = "";
+  const keys = [...days.keys()].sort();
+
+  if (!keys.length && !broken.length) {
+    $("content").appendChild(el("div","empty","No fixtures listed for next week."));
+    return;
+  }
+
+  keys.forEach(k => {
+    const card = el("div","league");
+    const head = el("div","lhead");
+    const names = el("div");
+    const d = parseYmd(k);
+    names.appendChild(el("div","lname", d.toLocaleDateString([], { weekday:"long", day:"numeric", month:"long" })));
+    const n = [...days.get(k).values()].reduce((t, g) => t + g.matches.length, 0);
+    names.appendChild(el("div","lcountry", n + " match" + (n === 1 ? "" : "es")));
+    head.appendChild(names);
+    card.appendChild(head);
+
+    // League order follows LEAGUES, so the page reads the same way every day.
+    LEAGUES.forEach(cfg => {
+      const g = days.get(k).get(cfg.key);
+      if (!g) return;
+      const band = el("div","note");
+      band.textContent = cfg.name;
+      band.style.textAlign = "left";
+      band.style.fontWeight = "600";
+      card.appendChild(band);
+      g.matches.sort((a,b) => a.kickoff - b.kickoff).forEach(m => card.appendChild(matchRow(m, cfg)));
+    });
+    $("content").appendChild(card);
+  });
+
+  broken.forEach(b => {
+    const card = el("div","league");
+    const head = el("div","lhead");
+    const names = el("div");
+    names.appendChild(el("div","lname", b.cfg.name));
+    names.appendChild(el("div","lcountry", b.cfg.country));
+    head.appendChild(names);
+    card.appendChild(head);
+    const e = el("div","empty","Fixtures unavailable - " + b.error + ". ");
+    const a = el("a", null, "details"); a.href = "#debug";
+    e.appendChild(a);
+    card.appendChild(e);
+    $("content").appendChild(card);
+  });
+}
+
 /* ---------------- wiring ---------------- */
 
 const TOPBAR_HTML = $("topBar").innerHTML;
@@ -1293,6 +1461,7 @@ function route(){
   const r = routeOf(location.hash);
   window.scrollTo(0, 0);
   if (r.view === "debug") showDebug();
+  else if (r.view === "next") showNext(r.league);
   else if (r.view === "standings") showStandings(r.league);
   else showResults();
 }
