@@ -15,6 +15,13 @@
 <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d1014" media="(prefers-color-scheme: dark)">
 <title>Football Today</title>
+<script>
+  // Runs before any styling is applied: a saved choice must win before paint.
+  try {
+    var t = localStorage.getItem("theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}   // private window, storage blocked - fall back to the OS setting
+</script>
 <style>
 :root{
   --bg:#f6f7f9; --panel:#ffffff; --panel-2:#f0f2f5; --line:#e2e5ea;
@@ -59,6 +66,13 @@ body{
 header{padding-block:calc(22px + env(safe-area-inset-top)) 14px}
 h1{font-size:22px;margin:0 0 2px;letter-spacing:-.02em}
 .sub{color:var(--muted);font-size:13px}
+.htop{display:flex;align-items:flex-start;gap:12px}
+.httl{min-width:0}
+.themebtn{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:9px;
+  background:var(--panel);color:var(--muted);cursor:pointer}
+.themebtn:hover{background:var(--chip);color:var(--text)}
+.themebtn svg{width:17px;height:17px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
 button,.btn{
   font:inherit;font-size:13px;color:var(--text);background:var(--panel);
@@ -170,8 +184,13 @@ tr.drop td.tm{font-weight:600}
 <div class="wrap">
 
 <header>
-  <h1 id="pageTitle">Football Today</h1>
-  <div class="sub" id="pageSub">Top 5 leagues · Champions League · Persian Gulf Pro League</div>
+  <div class="htop">
+    <div class="httl">
+      <h1 id="pageTitle">Football Today</h1>
+      <div class="sub" id="pageSub">Top 5 leagues · Champions League · Persian Gulf Pro League</div>
+    </div>
+    <button id="themeBtn" class="themebtn" title="Theme: follow the system"><span id="themeIcon"></span></button>
+  </div>
   <div class="bar" id="topBar">
     <button id="prevBtn" title="Previous day">‹</button>
     <span id="dateLabel">—</span>
@@ -1432,6 +1451,71 @@ async function showNext(onlyLeague){
   });
 }
 
+/* ---------------- theme ----------------
+   The dark palette has existed since the first version and follows the OS.
+   This only adds a way to override it: auto -> light -> dark -> auto. The
+   choice is a per-browser convenience, so losing it (private window, cleared
+   data) just means falling back to the OS, which is the sane default anyway. */
+
+const THEMES = ["auto", "light", "dark"];
+const THEME_ICON = {
+  auto:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 20.5a8.5 8.5 0 0 0 0-17" fill="currentColor" stroke="none"/></svg>',
+  light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.9 1.9M16.8 16.8l1.9 1.9M18.7 5.3l-1.9 1.9M7.2 16.8l-1.9 1.9"/></svg>',
+  dark:  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.7 8.7 0 1 0 10.7 10.7z"/></svg>'
+};
+const THEME_TITLE = {
+  auto:  "Theme: follow the system",
+  light: "Theme: always light",
+  dark:  "Theme: always dark"
+};
+
+function readTheme(){
+  try { const t = localStorage.getItem("theme"); return THEMES.includes(t) ? t : "auto"; }
+  catch (e) { return "auto"; }
+}
+
+function applyTheme(mode){
+  const root = document.documentElement;
+  if (mode === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", mode);
+
+  // The two media-scoped theme-color tags cannot express a forced choice, so
+  // while one is forced they are replaced by a single plain one.
+  const dark = mode === "dark" ||
+    (mode === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  let fixed = document.getElementById("tcFixed");
+  if (!fixed) {
+    fixed = document.createElement("meta");
+    fixed.id = "tcFixed"; fixed.name = "theme-color";
+    document.head.appendChild(fixed);
+  }
+  fixed.setAttribute("content", dark ? "#0d1014" : "#f6f7f9");
+
+  const btn = $("themeBtn");
+  if (btn) {
+    $("themeIcon").innerHTML = THEME_ICON[mode];
+    btn.title = THEME_TITLE[mode];
+    btn.setAttribute("aria-label", THEME_TITLE[mode]);
+  }
+}
+
+function initTheme(){
+  let mode = readTheme();
+  applyTheme(mode);
+  $("themeBtn").addEventListener("click", () => {
+    mode = THEMES[(THEMES.indexOf(mode) + 1) % THEMES.length];
+    try { localStorage.setItem("theme", mode); } catch (e) {}
+    applyTheme(mode);
+  });
+  // While on auto, follow the system if it changes under us.
+  if (window.matchMedia) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => { if (mode === "auto") applyTheme("auto"); };
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+}
+
 /* ---------------- wiring ---------------- */
 
 const TOPBAR_HTML = $("topBar").innerHTML;
@@ -1505,6 +1589,7 @@ function route(){
   else showResults();
 }
 
+initTheme();
 window.addEventListener("hashchange", route);
 setInterval(tickLive, LIVE_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tickLive(); });
