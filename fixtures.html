@@ -214,17 +214,18 @@ const AFC_CHANNEL = "UCnj0TjaM0wyxkAWW_nz8_1g";
 const AFC_LIVE_URL = "https://www.youtube.com/@TheAFCHub/live";
 
 const LEAGUES = [
-  { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe"  },
-  { key:"eng.1", drop:3,          src:"espn", name:"Premier League",          country:"England" },
-  { key:"esp.1", drop:3,          src:"espn", name:"La Liga",                 country:"Spain"   },
-  { key:"ita.1", drop:3,          src:"espn", name:"Serie A",                 country:"Italy"   },
-  { key:"ger.1", drop:2,          src:"espn", name:"Bundesliga",              country:"Germany" },
-  { key:"fra.1", drop:2,          src:"espn", name:"Ligue 1",                 country:"France"  },
-  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran"    },
+  { key:"uefa.champions", drop:0, src:"espn", name:"UEFA Champions League",   country:"Europe",  tsdb:"4480", roundWord:"Matchday" },
+  { key:"eng.1", drop:3,          src:"espn", name:"Premier League",          country:"England", tsdb:"4328" },
+  { key:"esp.1", drop:3,          src:"espn", name:"La Liga",                 country:"Spain",   tsdb:"4335" },
+  { key:"ita.1", drop:3,          src:"espn", name:"Serie A",                 country:"Italy",   tsdb:"4332" },
+  { key:"ger.1", drop:2,          src:"espn", name:"Bundesliga",              country:"Germany", tsdb:"4331" },
+  { key:"fra.1", drop:2,          src:"espn", name:"Ligue 1",                 country:"France",  tsdb:"4334" },
+  { key:IRAN_LEAGUE, drop:4,      src:"tsdb", name:"Persian Gulf Pro League", country:"Iran",    tsdb:IRAN_LEAGUE },
   // ESPN publishes no country on AFC teams, so Iranian clubs are matched by name.
   // Anything not on this list is filtered out of the card; the table link still
   // shows the full competition.
   { key:"afc.champions", drop:0,  src:"espn", name:"AFC Champions League Elite", country:"Asia", stream:true,
+    tsdb:"4719", roundWord:"Matchday",
     only: /esteghlal|persepolis|sepahan|trakt|tract|foolad|nassaji|gol[- ]?gohar|zob ?ahan|sanat naft|naft |malavan|shams azar|paykan|havadar|chadormalu|aluminium|kheybar|fajr sepasi|mes rafsanjan|mes kerman|pars jonoubi|machine sazi|saipa/i,
     emptyText: "No Iranian club playing on this date." }
 ];
@@ -1302,6 +1303,30 @@ function inWeek(m, start, end){
   return k >= ymd(start) && k <= ymd(end);
 }
 
+/* ESPN publishes no round number for soccer anywhere in its feeds - not on the
+   scoreboard, not on the core event, and its weeks endpoint is empty. The only
+   free source that has it is TheSportsDB, which is rationed and often refuses,
+   so this runs AFTER the fixtures are on screen and quietly adds nothing when
+   it fails. A missing matchweek must never hold up or break the page. */
+const ROUND_TTL = 3600000;        // rounds do not move once published
+
+async function roundFor(cfg, dayKey){
+  if (!cfg.tsdb) return null;
+  const r = await cached("round|" + cfg.tsdb + "|" + dayKey, ROUND_TTL,
+    () => net(`${TSDB}/eventsday.php?d=${dayKey}&l=${cfg.tsdb}`,
+              { note: "round " + cfg.name + " " + dayKey, timeout: 6000 }));
+  if (!r.ok) return null;
+  // The free tier truncates the match list, so take the round most of the
+  // returned matches agree on rather than the first one.
+  const tally = new Map();
+  (((r.data && r.data.events) || [])).forEach(e => {
+    const n = e && e.intRound;
+    if (n) tally.set(String(n), (tally.get(String(n)) || 0) + 1);
+  });
+  if (!tally.size) return null;
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 async function showNext(onlyLeague){
   const { start, end } = weekRange(new Date());
   const fmt = d => d.toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" });
@@ -1352,6 +1377,7 @@ async function showNext(onlyLeague){
     return;
   }
 
+  const bands = [];
   keys.forEach(k => {
     const card = el("div","league");
     const head = el("div","lhead");
@@ -1372,9 +1398,20 @@ async function showNext(onlyLeague){
       band.style.textAlign = "left";
       band.style.fontWeight = "600";
       card.appendChild(band);
+      bands.push({ band, cfg, dayKey: k });
       g.matches.sort((a,b) => a.kickoff - b.kickoff).forEach(m => card.appendChild(matchRow(m, cfg)));
     });
     $("content").appendChild(card);
+  });
+
+  // Matchweek labels land after the fixtures are already on screen, so a slow
+  // or refused lookup costs nothing but the label itself.
+  bands.forEach(b => {
+    roundFor(b.cfg, b.dayKey).then(n => {
+      if (!n || !b.band.isConnected) return;
+      const word = b.cfg.roundWord || "Matchweek";
+      b.band.textContent = b.cfg.name + " \u00b7 " + word + " " + n;
+    });
   });
 
   broken.forEach(b => {
