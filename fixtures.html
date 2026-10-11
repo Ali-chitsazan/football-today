@@ -82,6 +82,7 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .tablelink{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:7px}
 .tablelink:hover{background:var(--chip)}
 .tablelink.quiet{color:var(--muted)}
+.mw{color:var(--accent)}
 
 .match{padding:12px 14px;border-top:1px solid var(--line)}
 .match:first-of-type{border-top:none}
@@ -1410,7 +1411,8 @@ async function showNext(onlyLeague){
     roundFor(b.cfg, b.dayKey).then(n => {
       if (!n || !b.band.isConnected) return;
       const word = b.cfg.roundWord || "Matchweek";
-      b.band.textContent = b.cfg.name + " \u00b7 " + word + " " + n;
+      b.band.textContent = b.cfg.name + " \u00b7 ";
+      b.band.appendChild(el("span","mw", word + " " + n));
     });
   });
 
