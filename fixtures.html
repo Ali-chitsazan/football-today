@@ -69,10 +69,11 @@ h1{font-size:22px;margin:0 0 2px;letter-spacing:-.02em}
 .htop{display:flex;align-items:flex-start;gap:12px}
 .httl{min-width:0}
 .themebtn{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
-  width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:9px;
-  background:var(--panel);color:var(--muted);cursor:pointer}
+  gap:6px;height:34px;padding:0 11px;border:1px solid var(--line);border-radius:9px;
+  background:var(--panel);color:var(--muted);cursor:pointer;font:inherit;font-size:12.5px;line-height:1}
 .themebtn:hover{background:var(--chip);color:var(--text)}
-.themebtn svg{width:17px;height:17px}
+.themebtn svg{width:16px;height:16px;flex:0 0 auto}
+.themebtn .lbl{white-space:nowrap}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
 button,.btn{
   font:inherit;font-size:13px;color:var(--text);background:var(--panel);
@@ -189,7 +190,7 @@ tr.drop td.tm{font-weight:600}
       <h1 id="pageTitle">Football Today</h1>
       <div class="sub" id="pageSub">Top 5 leagues · Champions League · Persian Gulf Pro League</div>
     </div>
-    <button id="themeBtn" class="themebtn" title="Theme: follow the system"><span id="themeIcon"></span></button>
+    <button id="themeBtn" class="themebtn" title="Theme: follow the system"><span id="themeIcon"></span><span class="lbl" id="themeLabel">Auto</span></button>
   </div>
   <div class="bar" id="topBar">
     <button id="prevBtn" title="Previous day">‹</button>
@@ -1468,6 +1469,8 @@ const THEME_TITLE = {
   light: "Theme: always light",
   dark:  "Theme: always dark"
 };
+// The icon alone was too easy to miss, so the current mode is spelled out.
+const THEME_LABEL = { auto: "Auto", light: "Light", dark: "Dark" };
 
 function readTheme(){
   try { const t = localStorage.getItem("theme"); return THEMES.includes(t) ? t : "auto"; }
@@ -1494,6 +1497,7 @@ function applyTheme(mode){
   const btn = $("themeBtn");
   if (btn) {
     $("themeIcon").innerHTML = THEME_ICON[mode];
+    $("themeLabel").textContent = THEME_LABEL[mode];
     btn.title = THEME_TITLE[mode];
     btn.setAttribute("aria-label", THEME_TITLE[mode]);
   }
