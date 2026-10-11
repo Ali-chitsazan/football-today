@@ -81,6 +81,7 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .lcountry{color:var(--faint);font-size:12px}
 .tablelink{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:7px}
 .tablelink:hover{background:var(--chip)}
+.tablelink.quiet{color:var(--muted)}
 
 .match{padding:12px 14px;border-top:1px solid var(--line)}
 .match:first-of-type{border-top:none}
@@ -847,7 +848,9 @@ function leagueCard(L){
   names.appendChild(el("div","lname", cfg.name));
   names.appendChild(el("div","lcountry", cfg.country));
   head.appendChild(names);
-  const nextLink = el("a","tablelink","Next matches");
+  // Grey against the green table link: the two stop competing, and green keeps
+  // meaning one thing in the app.
+  const nextLink = el("a","tablelink quiet","Next matches");
   nextLink.href = "#next/" + encodeURIComponent(cfg.key);
   nextLink.style.marginLeft = "auto";
   head.appendChild(nextLink);
