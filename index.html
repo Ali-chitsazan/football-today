@@ -98,6 +98,10 @@ button:hover,.btn:hover{background:var(--panel-2)}
 .tablelink:hover{background:var(--chip)}
 .tablelink.quiet{color:var(--muted)}
 .mw{color:var(--accent)}
+.bandrow{display:flex;align-items:center;gap:10px;text-align:left}
+.bandtxt{font-weight:600}
+.bandtable{margin-left:auto;flex:0 0 auto;font-size:11.5px;color:var(--accent);text-decoration:none;white-space:nowrap}
+.bandtable:hover{text-decoration:underline}
 
 .match{padding:12px 14px;border-top:1px solid var(--line)}
 .match:first-of-type{border-top:none}
@@ -959,7 +963,12 @@ function renderResults(){
    Everything else — scroll position, standings, an open highlight — is left
    alone, so this never yanks the page around while you are reading it. */
 
-const LIVE_MS = 60000;
+// 30s, not 60s. Measured against ESPN on 25 Oct: the feed itself is accurate to
+// the minute, so a 60s poll left the clock sitting still for a whole minute and
+// then jumping, which reads as a freeze. A live league costs one request per
+// tick (the neighbouring days stay cached), so this is 2 requests a minute with
+// two matches in play.
+const LIVE_MS = 30000;
 let liveBusy = false;
 
 // Everything about a match that the row actually shows. The tick compares it
@@ -1414,12 +1423,16 @@ async function showNext(onlyLeague){
     LEAGUES.forEach(cfg => {
       const g = days.get(k).get(cfg.key);
       if (!g) return;
-      const band = el("div","note");
-      band.textContent = cfg.name;
-      band.style.textAlign = "left";
-      band.style.fontWeight = "600";
+      const band = el("div","note bandrow");
+      // The league name and its matchweek live in their own span, because the
+      // matchweek lookup rewrites it later and must not wipe the link.
+      const bandName = el("span","bandtxt", cfg.name);
+      band.appendChild(bandName);
+      const bandTable = el("a","bandtable","League table");
+      bandTable.href = "#standings/" + encodeURIComponent(cfg.key);
+      band.appendChild(bandTable);
       card.appendChild(band);
-      bands.push({ band, cfg, dayKey: k });
+      bands.push({ band, bandName, cfg, dayKey: k });
       g.matches.sort((a,b) => a.kickoff - b.kickoff).forEach(m => card.appendChild(matchRow(m, cfg)));
     });
     $("content").appendChild(card);
@@ -1431,8 +1444,8 @@ async function showNext(onlyLeague){
     roundFor(b.cfg, b.dayKey).then(n => {
       if (!n || !b.band.isConnected) return;
       const word = b.cfg.roundWord || "Matchweek";
-      b.band.textContent = b.cfg.name + " \u00b7 ";
-      b.band.appendChild(el("span","mw", word + " " + n));
+      b.bandName.textContent = b.cfg.name + " \u00b7 ";
+      b.bandName.appendChild(el("span","mw", word + " " + n));
     });
   });
 
@@ -1596,7 +1609,13 @@ function route(){
 initTheme();
 window.addEventListener("hashchange", route);
 setInterval(tickLive, LIVE_MS);
+// Timers are frozen while the app is in the background, so coming back must
+// refresh at once rather than waiting for the next tick. visibilitychange
+// covers the browser; pageshow catches an iOS home-screen app restored from
+// the page cache, and focus covers the Mac app window being brought forward.
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tickLive(); });
+window.addEventListener("pageshow", () => tickLive());
+window.addEventListener("focus", () => tickLive());
 
 // Old bookmarks used ?view=standings&league=... — send those to the hash route
 if (!location.hash && params.get("view") === "standings" && params.get("league")) {
