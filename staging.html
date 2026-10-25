@@ -963,7 +963,12 @@ function renderResults(){
    Everything else — scroll position, standings, an open highlight — is left
    alone, so this never yanks the page around while you are reading it. */
 
-const LIVE_MS = 60000;
+// 30s, not 60s. Measured against ESPN on 25 Oct: the feed itself is accurate to
+// the minute, so a 60s poll left the clock sitting still for a whole minute and
+// then jumping, which reads as a freeze. A live league costs one request per
+// tick (the neighbouring days stay cached), so this is 2 requests a minute with
+// two matches in play.
+const LIVE_MS = 30000;
 let liveBusy = false;
 
 // Everything about a match that the row actually shows. The tick compares it
@@ -1604,7 +1609,13 @@ function route(){
 initTheme();
 window.addEventListener("hashchange", route);
 setInterval(tickLive, LIVE_MS);
+// Timers are frozen while the app is in the background, so coming back must
+// refresh at once rather than waiting for the next tick. visibilitychange
+// covers the browser; pageshow catches an iOS home-screen app restored from
+// the page cache, and focus covers the Mac app window being brought forward.
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tickLive(); });
+window.addEventListener("pageshow", () => tickLive());
+window.addEventListener("focus", () => tickLive());
 
 // Old bookmarks used ?view=standings&league=... — send those to the hash route
 if (!location.hash && params.get("view") === "standings" && params.get("league")) {
