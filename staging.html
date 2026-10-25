@@ -275,6 +275,17 @@ function routeOf(hash){
   return m ? { view: "standings", league: decodeURIComponent(m[1]) } : { view: "results" };
 }
 
+/* Every loader awaits the network, and the user can navigate while it waits.
+   Before anything is drawn the route is checked again, otherwise a slow load
+   paints over the page you have already moved to: tapping Next week while the
+   scores were still loading left the header saying "Next week" above today's
+   fixtures. */
+function stillOn(view, league){
+  const r = routeOf(location.hash);
+  if (r.view !== view) return false;
+  return league === undefined || r.league === league;
+}
+
 /* ---------------- network ----------------
    Every remote call goes through net(). It never throws - it returns
    {ok, data, error} - so a source that breaks can only empty its own card
@@ -913,6 +924,7 @@ async function loadResults(){
   const target = ymd(day);
   const loaded = await Promise.all(LEAGUES.map(cfg => leagueDay(cfg, day)));
   if (ymd(day) !== target) return;          // the date was changed while we waited
+  if (!stillOn("results")) return;          // or the view was
 
   STATE.target = target;
   STATE.leagues = LEAGUES.map((cfg, i) => ({
@@ -924,7 +936,7 @@ async function loadResults(){
   }));
 
   await Promise.all([loadHighlights(), loadStreams()]);
-  if (ymd(day) !== target) return;
+  if (ymd(day) !== target || !stillOn("results")) return;
   renderResults();
 }
 
@@ -1177,6 +1189,7 @@ async function loadStandings(viewLeague){
   if (cfg.src === "espn") {
     const st = await cached("table|" + cfg.key, TTL_TABLE,
       () => net(`${ESPN_STANDINGS}/${cfg.key}/standings`, { note: "table " + cfg.key }));
+    if (!stillOn("standings", viewLeague)) return;
     if (!st.ok) return fail(st.error);
 
     const groups = ((st.data && st.data.children) || []).slice();
@@ -1194,6 +1207,7 @@ async function loadStandings(viewLeague){
     const ids = [];
     groups.forEach(g => (g.standings.entries || []).forEach(e => { if (e.team && e.team.id) ids.push(e.team.id); }));
     const formMap = await formFromSchedules(cfg, ids);
+    if (!stillOn("standings", viewLeague)) return;
 
     $("content").innerHTML = "";
     $("error").classList.add("hide");
@@ -1221,6 +1235,7 @@ async function loadStandings(viewLeague){
           () => net(`${IRAN_PROXY}/api/base/v2/competition-trends/${trend}/standings/`, { note: "f360 standings" })),
         cached("f360|fixtures", TTL_LIVE, fetchIranFixturesRaw)
       ]);
+      if (!stillOn("standings", viewLeague)) return;
       const dig = (o, depth) => {
         if (Array.isArray(o) && o.length && o[0] && o[0].team && o[0].rank !== undefined) return o;
         if (o && typeof o === "object" && depth < 5) {
@@ -1253,6 +1268,7 @@ async function loadStandings(viewLeague){
 
   const season = iranSeason(day);
   const t = await net(`${TSDB}/lookuptable.php?l=${cfg.key}&s=${season}`, { note: "tsdb table " + season });
+  if (!stillOn("standings", viewLeague)) return;
   if (!t.ok) return fail(t.error);
   const rows = ((t.data && t.data.table) || []).map(r => ({
     rank: Number(r.intRank), team: r.strTeam, logo: r.strBadge || null,
