@@ -218,6 +218,10 @@ tr.drop td.tm{font-weight:600}
 
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 const ESPN_STANDINGS = "https://site.api.espn.com/apis/v2/sports/soccer";
+// The scoreboard refuses date ranges, but the core API still answers them.
+// It returns links rather than fixtures, which is useless for drawing a match
+// and perfect for asking "does this competition play that week at all".
+const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/soccer";
 const TSDB = "https://www.thesportsdb.com/api/v1/json/123";
 
 /* ============================================================
@@ -1302,6 +1306,61 @@ function weekRange(from){
   return { start, end: shift(start, 6) };
 }
 
+/* "Next week" means the next week that actually has football, not the next
+   square on the calendar. During an international break the following week is
+   empty, and a blank page is useless, so empty weeks are skipped. Each ESPN
+   league publishes a calendar of every date it plays, and football360 hands
+   over the whole Iranian season in one call, so the search costs nothing
+   beyond calls the page already makes. Cups publish only a phase calendar, but
+   they never play in a week when no league plays, so the league calendars are
+   enough to find the week. */
+const WEEK_LOOKAHEAD = 8;
+
+async function leagueCalendar(cfg){
+  const r = await cached("sb|" + cfg.key + "|" + compact(new Date()), TTL_PAST,
+    () => net(`${ESPN}/${cfg.key}/scoreboard?dates=${compact(new Date())}`,
+              { note: cfg.key + " calendar" }));
+  return r.ok ? calendarDays(r.data) : null;
+}
+
+async function cupPlaysWeek(cfg, start){
+  const a = compact(start), b = compact(shift(start, 6));
+  const r = await cached("cupweek|" + cfg.key + "|" + a, TTL_TABLE,
+    () => net(`${ESPN_CORE}/leagues/${cfg.key}/events?dates=${a}-${b}&limit=1`,
+              { note: "week scan " + cfg.key + " " + a }));
+  return r.ok && ((r.data && r.data.count) || 0) > 0;
+}
+
+/* One week per competition, not one week for the page. After an international
+   break the leagues, the Champions League, the AFC and Iran all come back on
+   different dates, so a single week can never hold them all: the week that
+   suited the European leagues left the other three looking empty.
+
+   Leagues and Iran are answered from calendars already in hand. Cups publish
+   no day calendar, so they are asked week by week through the core API, which
+   costs one tiny request per week looked at. */
+async function weekForLeague(cfg){
+  let days = null;
+  if (cfg.src === "espn") days = await leagueCalendar(cfg);
+  else if (IRAN_PROXY) {
+    const r = await cached("f360|fixtures", TTL_PAST, fetchIranFixturesRaw);
+    if (r.ok) {
+      days = new Set();
+      f360Matches(r.data).forEach(m => { if (!isNaN(m.kickoff)) days.add(ymd(m.kickoff)); });
+    }
+  }
+
+  let start = weekRange(new Date()).start;
+  for (let i = 0; i < WEEK_LOOKAHEAD; i++) {
+    const a = ymd(start), b = ymd(shift(start, 6));
+    const hit = days ? [...days].some(d => d >= a && d <= b)
+                     : await cupPlaysWeek(cfg, start);
+    if (hit) return { start, end: shift(start, 6) };
+    start = shift(start, 7);
+  }
+  return null;                      // nothing within the lookahead
+}
+
 // Day-level only. Cups return a phase calendar, which is no use here.
 function calendarDays(json){
   const lg = json && json.leagues && json.leagues[0];
@@ -1374,14 +1433,13 @@ async function roundFor(cfg, dayKey){
 }
 
 async function showNext(onlyLeague){
-  const { start, end } = weekRange(new Date());
   const fmt = d => d.toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" });
+  const short = d => d.toLocaleDateString([], { day:"numeric", month:"short" });
   const cfgs = LEAGUES.filter(c => !onlyLeague || c.key === onlyLeague);
 
-  $("pageTitle").textContent = "Next week";
-  $("pageSub").textContent = fmt(start) + " – " + fmt(end) +
-    (onlyLeague && cfgs[0] ? " · " + cfgs[0].name : "");
-  document.title = "Football - next week";
+  $("pageTitle").textContent = "Next matches";
+  $("pageSub").textContent = "";
+  document.title = "Football - next matches";
   $("error").classList.add("hide");
   $("topBar").innerHTML = "";
   const back = el("a","btn","← Back to the scores"); back.href = "#";
@@ -1393,18 +1451,24 @@ async function showNext(onlyLeague){
   $("content").innerHTML = "";
   $("content").appendChild(el("div","empty","Loading…"));
 
-  const loaded = await Promise.all(cfgs.map(cfg =>
-    cfg.src === "espn" ? espnWeek(cfg, start, end) : iranWeek(cfg)));
+  const weeks = await Promise.all(cfgs.map(weekForLeague));
+  if (routeOf(location.hash).view !== "next") return;
+
+  const loaded = await Promise.all(cfgs.map((cfg, i) =>
+    weeks[i] ? (cfg.src === "espn" ? espnWeek(cfg, weeks[i].start, weeks[i].end) : iranWeek(cfg))
+             : Promise.resolve({ matches: [], logo: null })));
   if (routeOf(location.hash).view !== "next") return;   // navigated away while loading
 
   // day -> [{cfg, matches}]
   const days = new Map();
   const broken = [];
+  const idle = [];
   cfgs.forEach((cfg, i) => {
-    const r = loaded[i];
+    const r = loaded[i], w = weeks[i];
     if (!r.matches) { broken.push({ cfg, error: r.error || "unreachable" }); return; }
+    if (!w) { idle.push(cfg); return; }
     r.matches
-      .filter(m => inWeek(m, start, end))
+      .filter(m => inWeek(m, w.start, w.end))
       .filter(m => !cfg.only || cfg.only.test(m.home.name) || cfg.only.test(m.away.name))
       .forEach(m => {
         const k = ymd(m.kickoff);
@@ -1414,6 +1478,14 @@ async function showNext(onlyLeague){
         perLeague.get(cfg.key).matches.push(m);
       });
   });
+
+  // The span is whatever the competitions actually add up to, so it is read off
+  // the fixtures rather than decided in advance.
+  const span = [...days.keys()].sort();
+  $("pageSub").textContent = (span.length
+      ? fmt(parseYmd(span[0])) + " – " + fmt(parseYmd(span[span.length - 1]))
+      : "no fixtures found") +
+    (onlyLeague && cfgs[0] ? " · " + cfgs[0].name : "");
 
   $("content").innerHTML = "";
   const keys = [...days.keys()].sort();
@@ -1463,6 +1535,22 @@ async function showNext(onlyLeague){
       b.bandName.textContent = b.cfg.name + " \u00b7 ";
       b.bandName.appendChild(el("span","mw", word + " " + n));
     });
+  });
+
+  idle.forEach(cfg => {
+    const card = el("div","league");
+    const head = el("div","lhead");
+    const names = el("div");
+    names.appendChild(el("div","lname", cfg.name));
+    names.appendChild(el("div","lcountry", cfg.country));
+    head.appendChild(names);
+    const link = el("a","tablelink","League table");
+    link.href = "#standings/" + encodeURIComponent(cfg.key);
+    link.style.marginLeft = "auto";
+    head.appendChild(link);
+    card.appendChild(head);
+    card.appendChild(el("div","empty","No fixtures in the next " + WEEK_LOOKAHEAD + " weeks."));
+    $("content").appendChild(card);
   });
 
   broken.forEach(b => {
